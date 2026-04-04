@@ -1,5 +1,3 @@
-import { jest } from '@jest/globals'
-
 const { buildFilterSets, parseCommaList } = await import('../src/filters.js')
 
 import type { ActionInputs } from '../src/types.js'

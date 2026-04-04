@@ -47,9 +47,13 @@ async function fetchWithRetry(
       clearTimeout(timeoutId)
       const msg = err instanceof Error ? err.message : String(err)
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`)
+        throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`, {
+          cause: err
+        })
       }
-      lastError = new Error(`Network error fetching ${url}: ${msg}`)
+      lastError = new Error(`Network error fetching ${url}: ${msg}`, {
+        cause: err
+      })
       if (attempt < MAX_RETRIES) continue
       throw lastError
     }

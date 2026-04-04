@@ -5,23 +5,9 @@ import type {
   EntityRefFormat,
   OrderDirection
 } from './types.js'
+import { parseCommaList } from './filters.js'
 
-/**
- * Parses a comma-separated input string into a deduplicated, trimmed array.
- */
-export function parseCommaList(input: string): string[] {
-  if (!input.trim()) return []
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const item of input.split(',')) {
-    const trimmed = item.trim()
-    if (trimmed && !seen.has(trimmed)) {
-      seen.add(trimmed)
-      result.push(trimmed)
-    }
-  }
-  return result
-}
+export { parseCommaList }
 
 function parseBool(value: string): boolean {
   return ['true', '1', 'yes'].includes(value.toLowerCase().trim())

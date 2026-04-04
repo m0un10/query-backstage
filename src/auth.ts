@@ -58,7 +58,8 @@ export async function buildAuthHeaders(
         })
       } catch (err) {
         throw new Error(
-          `Failed to reach OAuth2 token endpoint ${inputs.oauthTokenUrl}: ${err instanceof Error ? err.message : String(err)}`
+          `Failed to reach OAuth2 token endpoint ${inputs.oauthTokenUrl}: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err }
         )
       }
 

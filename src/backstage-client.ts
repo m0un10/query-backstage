@@ -68,6 +68,11 @@ async function fetchWithRetry(
   throw lastError ?? new Error('Request failed after retries')
 }
 
+export interface CatalogQueryResult {
+  entities: BackstageEntity[]
+  rawResponses: unknown[]
+}
+
 /**
  * Queries the Backstage Software Catalog using cursor-based pagination.
  * Supports multiple FilterSets (OR'd), field selection, ordering, and full-text search.
@@ -76,12 +81,12 @@ export async function queryBackstageCatalog(
   inputs: ActionInputs,
   authHeaders: AuthHeaders,
   filterSets: FilterSet[]
-): Promise<BackstageEntity[]> {
+): Promise<CatalogQueryResult> {
   const baseUrl = `${inputs.backstageBaseUrl}${inputs.catalogPath}/entities/by-query`
   const allEntities: BackstageEntity[] = []
   const rawResponses: unknown[] = []
 
-  let cursor: string | undefined = undefined
+  let cursor: string | undefined
   let pageCount = 0
 
   do {
@@ -182,8 +187,8 @@ export async function queryBackstageCatalog(
     inputs.maxEntities !== undefined &&
     allEntities.length > inputs.maxEntities
   ) {
-    return allEntities.slice(0, inputs.maxEntities)
+    return { entities: allEntities.slice(0, inputs.maxEntities), rawResponses }
   }
 
-  return allEntities
+  return { entities: allEntities, rawResponses }
 }

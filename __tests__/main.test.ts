@@ -68,7 +68,10 @@ describe('main.ts', () => {
     mockParseInputs.mockReturnValue(makeInputs())
     mockBuildAuthHeaders.mockResolvedValue({})
     mockBuildFilterSets.mockReturnValue([])
-    mockQueryBackstageCatalog.mockResolvedValue([])
+    mockQueryBackstageCatalog.mockResolvedValue({
+      entities: [],
+      rawResponses: []
+    })
     mockSetActionOutputs.mockReturnValue(undefined)
     mockWriteStepSummary.mockResolvedValue(undefined)
   })
@@ -90,7 +93,10 @@ describe('main.ts', () => {
 
   it('calls setFailed when fail_on_empty is true and no entities returned', async () => {
     mockParseInputs.mockReturnValue(makeInputs({ failOnEmpty: true }))
-    mockQueryBackstageCatalog.mockResolvedValue([])
+    mockQueryBackstageCatalog.mockResolvedValue({
+      entities: [],
+      rawResponses: []
+    })
 
     await run()
 
@@ -100,9 +106,10 @@ describe('main.ts', () => {
 
   it('does not call setFailed when entities are returned even with fail_on_empty', async () => {
     mockParseInputs.mockReturnValue(makeInputs({ failOnEmpty: true }))
-    mockQueryBackstageCatalog.mockResolvedValue([
-      { kind: 'Component', metadata: { name: 'svc' } }
-    ])
+    mockQueryBackstageCatalog.mockResolvedValue({
+      entities: [{ kind: 'Component', metadata: { name: 'svc' } }],
+      rawResponses: []
+    })
 
     await run()
 

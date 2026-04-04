@@ -2,6 +2,17 @@ import * as core from '@actions/core'
 import type { ActionInputs, BackstageEntity } from './types.js'
 
 /**
+ * Escapes HTML special characters to prevent injection in the step summary.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/**
  * Formats an entity reference based on the configured format.
  * - compound: `kind:namespace/name` (kind lowercased, namespace defaults to 'default')
  * - triplet: `kind/namespace/name`
@@ -64,7 +75,7 @@ export async function writeStepSummary(
     .addRaw(`<p>Total entities found: <strong>${count}</strong></p>`)
     .addRaw(
       previewCount > 0
-        ? `<p>First ${previewCount} entity refs:</p><ul>${entityRefs.map((r) => `<li>${r}</li>`).join('')}</ul>`
+        ? `<p>First ${previewCount} entity refs:</p><ul>${entityRefs.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
         : '<p>No entities matched the query.</p>'
     )
     .addRaw(

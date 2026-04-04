@@ -15,7 +15,7 @@ export async function run(): Promise<void> {
     const inputs = parseInputs()
     const authHeaders = await buildAuthHeaders(inputs)
     const filterSets = buildFilterSets(inputs)
-    const entities = await queryBackstageCatalog(
+    const { entities, rawResponses } = await queryBackstageCatalog(
       inputs,
       authHeaders,
       filterSets
@@ -26,7 +26,7 @@ export async function run(): Promise<void> {
       return
     }
 
-    setActionOutputs(entities, inputs)
+    setActionOutputs(entities, inputs, rawResponses)
     await writeStepSummary(entities, inputs)
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)

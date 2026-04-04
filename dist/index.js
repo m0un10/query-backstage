@@ -28623,7 +28623,8 @@ async function fetchWithRetry(url, headers, timeoutMs) {
 async function queryBackstageCatalog(inputs, authHeaders, filterSets) {
     const baseUrl = `${inputs.backstageBaseUrl}${inputs.catalogPath}/entities/by-query`;
     const allEntities = [];
-    let cursor = undefined;
+    const rawResponses = [];
+    let cursor;
     let pageCount = 0;
     do {
         const params = new URLSearchParams();
@@ -28680,6 +28681,7 @@ async function queryBackstageCatalog(inputs, authHeaders, filterSets) {
             throw new Error('Backstage catalog response did not contain an "items" array.');
         }
         const page = json;
+        rawResponses.push(json);
         allEntities.push(...page.items);
         pageCount++;
         debug(`Page ${pageCount}: received ${page.items.length} entities (total so far: ${allEntities.length})`);
@@ -28692,11 +28694,21 @@ async function queryBackstageCatalog(inputs, authHeaders, filterSets) {
     } while (cursor);
     if (inputs.maxEntities !== undefined &&
         allEntities.length > inputs.maxEntities) {
-        return allEntities.slice(0, inputs.maxEntities);
+        return { entities: allEntities.slice(0, inputs.maxEntities), rawResponses };
     }
-    return allEntities;
+    return { entities: allEntities, rawResponses };
 }
 
+/**
+ * Escapes HTML special characters to prevent injection in the step summary.
+ */
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
 /**
  * Formats an entity reference based on the configured format.
  * - compound: `kind:namespace/name` (kind lowercased, namespace defaults to 'default')
@@ -28724,7 +28736,9 @@ function setActionOutputs(entities, inputs, rawResponses) {
     setOutput('entity_names_json', JSON.stringify(entityNames));
     setOutput('first_entity_json', count > 0 ? JSON.stringify(entities[0]) : '');
     setOutput('has_results', count > 0 ? 'true' : 'false');
-    if (inputs.includeRawResponse && rawResponses !== undefined) ;
+    if (inputs.includeRawResponse && rawResponses !== undefined) {
+        setOutput('raw_response_json', JSON.stringify(rawResponses));
+    }
 }
 /**
  * Writes a step summary to the GitHub Actions summary with entity counts and refs.
@@ -28739,7 +28753,7 @@ async function writeStepSummary(entities, inputs) {
         .addHeading('Backstage Catalog Query Results', 2)
         .addRaw(`<p>Total entities found: <strong>${count}</strong></p>`)
         .addRaw(previewCount > 0
-        ? `<p>First ${previewCount} entity refs:</p><ul>${entityRefs.map((r) => `<li>${r}</li>`).join('')}</ul>`
+        ? `<p>First ${previewCount} entity refs:</p><ul>${entityRefs.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
         : '<p>No entities matched the query.</p>')
         .addRaw(count > 10 ? `<p><em>Showing first 10 of ${count} entities.</em></p>` : '')
         .addRaw(inputs.maxEntities !== undefined && count >= inputs.maxEntities
@@ -28758,12 +28772,12 @@ async function run() {
         const inputs = parseInputs();
         const authHeaders = await buildAuthHeaders(inputs);
         const filterSets = buildFilterSets(inputs);
-        const entities = await queryBackstageCatalog(inputs, authHeaders, filterSets);
+        const { entities, rawResponses } = await queryBackstageCatalog(inputs, authHeaders, filterSets);
         if (inputs.failOnEmpty && entities.length === 0) {
             setFailed('No entities matched the query');
             return;
         }
-        setActionOutputs(entities, inputs);
+        setActionOutputs(entities, inputs, rawResponses);
         await writeStepSummary(entities, inputs);
     }
     catch (error) {

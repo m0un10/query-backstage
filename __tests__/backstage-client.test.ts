@@ -78,7 +78,7 @@ describe('queryBackstageCatalog', () => {
       { status: 200, body: { items: entities, totalItems: 1, pageInfo: {} } }
     ])
 
-    const result = await queryBackstageCatalog(
+    const { entities: result } = await queryBackstageCatalog(
       makeInputs(),
       authHeaders,
       filterSets
@@ -102,7 +102,7 @@ describe('queryBackstageCatalog', () => {
       { status: 200, body: page2 }
     ])
 
-    const result = await queryBackstageCatalog(
+    const { entities: result } = await queryBackstageCatalog(
       makeInputs(),
       authHeaders,
       filterSets
@@ -121,7 +121,7 @@ describe('queryBackstageCatalog', () => {
       { status: 200, body: { items: entities, totalItems: 10, pageInfo: {} } }
     ])
 
-    const result = await queryBackstageCatalog(
+    const { entities: result } = await queryBackstageCatalog(
       makeInputs({ maxEntities: 3 }),
       authHeaders,
       filterSets
@@ -136,7 +136,7 @@ describe('queryBackstageCatalog', () => {
       { status: 200, body: { items: entities, totalItems: 1, pageInfo: {} } }
     ])
 
-    const result = await queryBackstageCatalog(
+    const { entities: result } = await queryBackstageCatalog(
       makeInputs(),
       authHeaders,
       filterSets
@@ -151,7 +151,7 @@ describe('queryBackstageCatalog', () => {
       { status: 200, body: { items: entities, totalItems: 1, pageInfo: {} } }
     ])
 
-    const result = await queryBackstageCatalog(
+    const { entities: result } = await queryBackstageCatalog(
       makeInputs(),
       authHeaders,
       filterSets
@@ -168,14 +168,12 @@ describe('queryBackstageCatalog', () => {
   })
 
   it('throws on invalid JSON response', async () => {
-    global.fetch = jest
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response('not-json', {
-          status: 200,
-          headers: { 'Content-Type': 'text/plain' }
-        })
-      ) as typeof fetch
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response('not-json', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' }
+      })
+    ) as typeof fetch
 
     await expect(
       queryBackstageCatalog(makeInputs(), authHeaders, filterSets)

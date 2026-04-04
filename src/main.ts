@@ -1,5 +1,9 @@
 import * as core from '@actions/core'
-import { wait } from './wait.js'
+import { parseInputs } from './inputs.js'
+import { buildAuthHeaders } from './auth.js'
+import { buildFilterSets } from './filters.js'
+import { queryBackstageCatalog } from './backstage-client.js'
+import { setActionOutputs, writeStepSummary } from './outputs.js'
 
 /**
  * The main function for the action.
@@ -8,20 +12,23 @@ import { wait } from './wait.js'
  */
 export async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
+    const inputs = parseInputs()
+    const authHeaders = await buildAuthHeaders(inputs)
+    const filterSets = buildFilterSets(inputs)
+    const entities = await queryBackstageCatalog(
+      inputs,
+      authHeaders,
+      filterSets
+    )
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    if (inputs.failOnEmpty && entities.length === 0) {
+      core.setFailed('No entities matched the query')
+      return
+    }
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
-
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
+    setActionOutputs(entities, inputs)
+    await writeStepSummary(entities, inputs)
   } catch (error) {
-    // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)
   }
 }

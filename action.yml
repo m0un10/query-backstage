@@ -1,23 +1,166 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
+name: query-backstage-catalog
+description: Query the Backstage Software Catalog
+author: GitHub
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: search
+  color: blue
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  backstage_base_url:
+    description: >
+      Base URL of your Backstage instance (e.g. https://backstage.example.com).
+      Trailing slashes are normalized automatically.
     required: true
-    default: '1000'
+  catalog_path:
+    description: Path to the Backstage catalog API.
+    required: false
+    default: /api/catalog
+  page_limit:
+    description: Number of entities to fetch per page (pagination page size).
+    required: false
+    default: '500'
+  max_entities:
+    description: >
+      Maximum total number of entities to return. Pagination stops once this
+      limit is reached. Omit to return all matching entities.
+    required: false
+  fail_on_empty:
+    description: Fail the workflow step if no entities are returned.
+    required: false
+    default: 'false'
+  include_raw_response:
+    description: >
+      Include the raw Backstage API response pages in the raw_response_json
+      output.
+    required: false
+    default: 'false'
+  debug_request:
+    description: Log the full request URL (without auth headers) for debugging.
+    required: false
+    default: 'false'
 
-# Define your outputs here.
+  # --- Convenience filters ---
+  kind:
+    description: >
+      Comma-separated list of entity kinds to filter by (e.g. Component,API).
+    required: false
+  namespace:
+    description: Comma-separated list of namespaces to filter by.
+    required: false
+  tags:
+    description: Comma-separated list of tags to filter by.
+    required: false
+  name:
+    description: Comma-separated list of entity names to filter by.
+    required: false
+  owner:
+    description: Comma-separated list of owners (spec.owner) to filter by.
+    required: false
+  system:
+    description: Comma-separated list of systems (spec.system) to filter by.
+    required: false
+  type:
+    description: Comma-separated list of types (spec.type) to filter by.
+    required: false
+  lifecycle:
+    description:
+      Comma-separated list of lifecycles (spec.lifecycle) to filter by.
+    required: false
+
+  # --- Advanced filter ---
+  filter:
+    description: >
+      Raw Backstage filter string. Each line is a separate filter set (OR'd).
+      Within a line, comma-separated key=value pairs are AND'd. Example:
+      "kind=Component,spec.lifecycle=production"
+    required: false
+
+  # --- Field selection & ordering ---
+  fields:
+    description: >
+      Comma-separated list of fields to include in the response (e.g.
+      kind,metadata.name,spec.owner).
+    required: false
+  order_field:
+    description: Field to order results by (e.g. metadata.name).
+    required: false
+  order_direction:
+    description: Sort direction. One of 'asc' or 'desc'.
+    required: false
+  full_text:
+    description: Full-text search string.
+    required: false
+  entity_ref_format:
+    description: >
+      Format of entity refs in outputs. Use 'compound' (kind:namespace/name) or
+      'triplet' (kind/namespace/name).
+    required: false
+    default: compound
+
+  # --- Authentication ---
+  auth_mode:
+    description: >
+      Authentication mode. One of: none, bearer_token,
+      oauth2_client_credentials, custom_header.
+    required: false
+    default: bearer_token
+  token:
+    description: Bearer token for auth_mode=bearer_token.
+    required: false
+  token_env_var:
+    description: >
+      Name of the environment variable containing the bearer token. Used when
+      auth_mode=bearer_token and token is not set directly.
+    required: false
+  custom_auth_header_name:
+    description: >
+      HTTP header name for auth_mode=custom_header (default: Authorization).
+    required: false
+    default: Authorization
+  custom_auth_header_value:
+    description: HTTP header value for auth_mode=custom_header.
+    required: false
+  oauth_token_url:
+    description: Token endpoint URL for auth_mode=oauth2_client_credentials.
+    required: false
+  oauth_client_id:
+    description: OAuth2 client ID for auth_mode=oauth2_client_credentials.
+    required: false
+  oauth_client_secret:
+    description: OAuth2 client secret for auth_mode=oauth2_client_credentials.
+    required: false
+  oauth_scope:
+    description: OAuth2 scope for auth_mode=oauth2_client_credentials.
+    required: false
+  oauth_audience:
+    description: OAuth2 audience for auth_mode=oauth2_client_credentials.
+    required: false
+  oauth_resource:
+    description: OAuth2 resource for auth_mode=oauth2_client_credentials.
+    required: false
+  timeout_ms:
+    description: HTTP request timeout in milliseconds.
+    required: false
+    default: '30000'
+
 outputs:
-  time:
-    description: Your output description here
+  count:
+    description: Total number of entities returned.
+  entities_json:
+    description: JSON array of all matched entities.
+  entity_refs_json:
+    description: JSON array of entity refs (e.g. component:default/my-service).
+  entity_names_json:
+    description: JSON array of entity metadata.name values.
+  first_entity_json:
+    description: JSON of the first matched entity, or empty string if none.
+  has_results:
+    description: "'true' if any entities were matched, 'false' otherwise."
+  raw_response_json:
+    description: >
+      Raw JSON response pages from the Backstage API. Only set when
+      include_raw_response=true.
 
 runs:
   using: node24

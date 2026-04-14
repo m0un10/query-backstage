@@ -1,6 +1,6 @@
 # query-backstage-catalog
 
-[![CI](https://github.com/owner/query-backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/owner/query-backstage/actions)
+[![CI](https://github.com/m0un10/query-backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/m0un10/query-backstage/actions)
 
 A GitHub Action that queries the [Backstage](https://backstage.io/) Software
 Catalog and exposes results as workflow outputs.

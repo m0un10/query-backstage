@@ -175,13 +175,13 @@ Catalog and exposes results as workflow outputs.
 **Getting a 401 Unauthorized error** Verify your token is valid and has access
 to the Backstage catalog API.
 
-**No entities returned**
+### No entities returned
 
 - Check your filter expressions for typos
 - Verify the kind value matches exactly (e.g. `Component`, not `component`)
 - Use `debug_request: 'true'` to inspect the full query URL
 
-**OAuth2 token request failing**
+### OAuth2 token request failing
 
 - Confirm `oauth_token_url`, `oauth_client_id`, and `oauth_client_secret` are
   all set

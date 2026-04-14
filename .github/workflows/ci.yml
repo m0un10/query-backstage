@@ -57,8 +57,15 @@ jobs:
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          backstage_base_url: https://demo.backstage.io
 
       - name: Print Output
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: |-
+          echo "${{ steps.test-action.outputs.count }}"
+          echo "${{ steps.test-action.outputs.entities_json }}"
+          echo "${{ steps.test-action.outputs.entity_refs_json }}"
+          echo "${{ steps.test-action.outputs.entity_names_json }}"
+          echo "${{ steps.test-action.outputs.first_entity_json }}"
+          echo "${{ steps.test-action.outputs.has_results }}"
+          echo "${{ steps.test-action.outputs.raw_response_json }}"

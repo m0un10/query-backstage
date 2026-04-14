@@ -172,8 +172,9 @@ Catalog and exposes results as workflow outputs.
 
 ## Troubleshooting
 
-**Getting a 401 Unauthorized error** Verify your token is valid and has access
-to the Backstage catalog API.
+### Getting a 401 Unauthorized error
+
+- Verify your token is valid and has access to the Backstage catalog API.
 
 ### No entities returned
 

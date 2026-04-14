@@ -1,4 +1,4 @@
-# query-backstage-catalog
+# query-backstage
 
 [![CI](https://github.com/m0un10/query-backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/m0un10/query-backstage/actions)
 
@@ -23,7 +23,7 @@ Catalog and exposes results as workflow outputs.
 ### Basic: query all Components
 
 ```yaml
-- uses: m0un10/query-backstage-catalog@v1
+- uses: m0un10/query-backstage@v1
   with:
     backstage_base_url: https://backstage.example.com
     token: ${{ secrets.BACKSTAGE_TOKEN }}
@@ -33,7 +33,7 @@ Catalog and exposes results as workflow outputs.
 ### Filter by owner and lifecycle
 
 ```yaml
-- uses: m0un10/query-backstage-catalog@v1
+- uses: m0un10/query-backstage@v1
   with:
     backstage_base_url: https://backstage.example.com
     token: ${{ secrets.BACKSTAGE_TOKEN }}
@@ -45,7 +45,7 @@ Catalog and exposes results as workflow outputs.
 ### Use OAuth2 client credentials
 
 ```yaml
-- uses: m0un10/query-backstage-catalog@v1
+- uses: m0un10/query-backstage@v1
   with:
     backstage_base_url: https://backstage.example.com
     auth_mode: oauth2_client_credentials
@@ -58,7 +58,7 @@ Catalog and exposes results as workflow outputs.
 ### Use raw filter expressions
 
 ```yaml
-- uses: m0un10/query-backstage-catalog@v1
+- uses: m0un10/query-backstage@v1
   with:
     backstage_base_url: https://backstage.example.com
     token: ${{ secrets.BACKSTAGE_TOKEN }}
@@ -70,7 +70,7 @@ Catalog and exposes results as workflow outputs.
 ### Fail if no results
 
 ```yaml
-- uses: m0un10/query-backstage-catalog@v1
+- uses: m0un10/query-backstage@v1
   with:
     backstage_base_url: https://backstage.example.com
     token: ${{ secrets.BACKSTAGE_TOKEN }}

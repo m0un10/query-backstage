@@ -1,0 +1,125 @@
+# Queries the public Backstage demo instance and fans out one matrix job per
+# returned entity so each job's step summary shows a rich markdown card for
+# that catalog item.
+name: Demo – Backstage Catalog Browser
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Step 1: query the catalog ──────────────────────────────────────────────
+  query-catalog:
+    name: Query Backstage Demo Catalog
+    runs-on: ubuntu-latest
+
+    outputs:
+      entity_refs_json: ${{ steps.query.outputs.entity_refs_json }}
+      entities_json: ${{ steps.query.outputs.entities_json }}
+      count: ${{ steps.query.outputs.count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Query Backstage Demo Catalog
+        id: query
+        uses: ./
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          # Keep the matrix size reasonable; the demo instance has many items.
+          max_entities: 15
+          # Request only the fields needed to build the per-entity summary.
+          fields: >-
+            kind,metadata.name,metadata.namespace,metadata.tags,
+            spec.type,spec.lifecycle,spec.owner,spec.system
+
+      - name: Write query summary
+        run: |
+          {
+            echo "## Backstage Demo Catalog Query"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Instance** | https://demo.backstage.io |"
+            echo "| **Filter** | kind=Component |"
+            echo "| **Entities returned** | ${{ steps.query.outputs.count }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Step 2: one matrix job per entity ─────────────────────────────────────
+  catalog-item-details:
+    name: '${{ matrix.entity_ref }}'
+    needs: query-catalog
+    # Skip the whole matrix if the query returned nothing.
+    if: ${{ needs.query-catalog.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Allow all matrix jobs to run even if one fails.
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        entity_ref:
+          ${{ fromJSON(needs.query-catalog.outputs.entity_refs_json) }}
+
+    steps:
+      - name: Render entity summary
+        env:
+          ENTITIES_JSON: ${{ needs.query-catalog.outputs.entities_json }}
+          ENTITY_REF: ${{ matrix.entity_ref }}
+        run: |
+          # ── Parse the compound ref (kind:namespace/name) ────────────────────
+          KIND="${ENTITY_REF%%:*}"
+          REST="${ENTITY_REF#*:}"
+          NAMESPACE="${REST%%/*}"
+          NAME="${REST#*/}"
+
+          # ── Extract this entity's object from the JSON array ────────────────
+          ENTITY=$(printf '%s' "$ENTITIES_JSON" | jq \
+            --arg k  "$KIND" \
+            --arg ns "$NAMESPACE" \
+            --arg n  "$NAME" \
+            '.[] | select(
+               (.kind | ascii_downcase) == $k
+               and .metadata.namespace == $ns
+               and .metadata.name      == $n
+            )')
+
+          # ── Pull individual fields (fall back to em-dash when absent) ────────
+          SPEC_TYPE=$(      printf '%s' "$ENTITY" | jq -r '.spec.type      // "—"')
+          SPEC_LIFECYCLE=$( printf '%s' "$ENTITY" | jq -r '.spec.lifecycle // "—"')
+          SPEC_OWNER=$(     printf '%s' "$ENTITY" | jq -r '.spec.owner     // "—"')
+          SPEC_SYSTEM=$(    printf '%s' "$ENTITY" | jq -r '.spec.system    // "—"')
+          TAGS=$(           printf '%s' "$ENTITY" | jq -r '
+            if (.metadata.tags // []) | length > 0
+            then .metadata.tags | map("`\(.)`") | join(", ")
+            else "—"
+            end')
+
+          # ── Capitalise the kind label for display ────────────────────────────
+          KIND_LABEL="$(tr '[:lower:]' '[:upper:]' <<< "${KIND:0:1}")${KIND:1}"
+
+          # ── Write the markdown card to the step summary ──────────────────────
+          {
+            echo "## 📦 ${KIND_LABEL}: \`${NAME}\`"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| **Kind** | ${KIND_LABEL} |"
+            echo "| **Namespace** | \`${NAMESPACE}\` |"
+            echo "| **Name** | \`${NAME}\` |"
+            echo "| **Type** | ${SPEC_TYPE} |"
+            echo "| **Lifecycle** | ${SPEC_LIFECYCLE} |"
+            echo "| **Owner** | ${SPEC_OWNER} |"
+            echo "| **System** | ${SPEC_SYSTEM} |"
+            echo "| **Tags** | ${TAGS} |"
+            echo ""
+            echo "> 🔗 Entity ref: \`${ENTITY_REF}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

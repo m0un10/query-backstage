@@ -1,0 +1,60 @@
+# Approximates the language coverage of .github/workflows/linter.yml
+# (super-linter) for local pre-commit runs. Super-linter does not publish
+# a .pre-commit-hooks.yaml, so we wire up the underlying linters directly
+# and reuse the existing config files at the repo root.
+#
+# Install:  pipx install pre-commit && pre-commit install
+# Run all:  pre-commit run --all-files
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^\.licenses/
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdown-lint.yml]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: [--config-file, .yaml-lint.yml, --strict]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        args: [-config-file, actionlint.yml]
+
+  - repo: https://github.com/bridgecrewio/checkov
+    rev: 3.2.490
+    hooks:
+      - id: checkov
+        args: [--config-file, .checkov.yml]
+
+  # Use the project-pinned prettier / eslint via npm so versions stay in
+  # sync with package.json instead of drifting against a mirrored hook.
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        language: system
+        entry: npx prettier --check
+        types_or: [javascript, jsx, ts, tsx, json, yaml, markdown, css, html]
+
+      - id: eslint
+        name: eslint
+        language: system
+        entry: npx eslint
+        files: \.(js|mjs|cjs|jsx|ts|tsx)$
+        exclude: ^(dist|coverage|node_modules)/

@@ -25,6 +25,78 @@ and
 
 ---
 
+## Example: render results in the Job Summary
+
+A complete workflow that queries the
+[public Backstage demo](https://demo.backstage.io) and writes a markdown report
+into the run's
+[Job Summary](https://docs.github.com/en/actions/how-tos/writing-workflows/choose-what-your-workflow-does/adding-a-job-summary):
+
+```yaml
+name: Backstage Catalog Report
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Backstage
+        id: query
+        uses: m0un10/query-backstage@v1
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          lifecycle: production
+          max_entities: 5
+          fields: metadata.name,metadata.namespace,spec.owner,spec.type
+
+      - name: Write Job Summary
+        env:
+          ENTITIES_JSON: ${{ steps.query.outputs.entities_json }}
+          COUNT: ${{ steps.query.outputs.count }}
+          HAS_RESULTS: ${{ steps.query.outputs.has_results }}
+        run: |
+          {
+            echo "## 📦 Backstage Catalog Report"
+            echo ""
+            if [ "$HAS_RESULTS" = "true" ]; then
+              echo "Found **${COUNT}** production components."
+              echo ""
+              echo "| Name | Namespace | Owner | Type |"
+              echo "|------|-----------|-------|------|"
+              printf '%s' "$ENTITIES_JSON" | jq -r '
+                .[] | "| `\(.metadata.name)` | `\(.metadata.namespace)` | \(.spec.owner) | \(.spec.type) |"
+              '
+            else
+              echo "_No production components found._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+```
+
+The Job Summary then renders as:
+
+---
+
+### 📦 Backstage Catalog Report
+
+Found **5** production components.
+
+| Name             | Namespace  | Owner    | Type    |
+| ---------------- | ---------- | -------- | ------- |
+| `petstore`       | `default`  | team-a   | service |
+| `wayback-search` | `default`  | team-b   | service |
+| `artist-lookup`  | `default`  | team-c   | service |
+| `playback-order` | `default`  | team-a   | service |
+| `searcher`       | `default`  | team-b   | service |
+
+---
+
 ## Usage
 
 ### Basic: query all Components

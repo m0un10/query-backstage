@@ -13,7 +13,9 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
       - id: end-of-file-fixer
+        exclude: ^(dist|coverage|node_modules|badges)/
       - id: trailing-whitespace
+        exclude: ^(dist|coverage|node_modules|badges)/
       - id: check-yaml
         args: [--allow-multiple-documents]
         exclude: ^\.licenses/
@@ -24,11 +26,13 @@ repos:
       - id: markdownlint
         args: [--config, .markdown-lint.yml]
 
+  # Match super-linter (linter.yml) which runs yamllint without --strict, so
+  # warnings surface but do not fail the hook. See .yaml-lint.yml for rules.
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
     hooks:
       - id: yamllint
-        args: [--config-file, .yaml-lint.yml, --strict]
+        args: [--config-file, .yaml-lint.yml]
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
@@ -42,15 +46,25 @@ repos:
       - id: checkov
         args: [--config-file, .checkov.yml]
 
-  # Use the project-pinned prettier / eslint via npm so versions stay in
-  # sync with package.json instead of drifting against a mirrored hook.
+  # System-language hooks: prettier / eslint use the project-pinned versions
+  # via npm so they stay in sync with package.json. shellcheck mirrors what
+  # super-linter runs on shell scripts in CI; install with `brew install
+  # shellcheck` (macOS) or `apt-get install shellcheck` (Linux).
   - repo: local
     hooks:
+      - id: shellcheck
+        name: shellcheck
+        language: system
+        entry: shellcheck
+        types: [shell]
+        exclude: ^(node_modules|dist)/
+
       - id: prettier
         name: prettier
         language: system
         entry: npx prettier --check
         types_or: [javascript, jsx, ts, tsx, json, yaml, markdown, css, html]
+        exclude: ^(dist|coverage|node_modules)/
 
       - id: eslint
         name: eslint

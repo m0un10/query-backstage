@@ -7,10 +7,10 @@ Catalog and exposes results as workflow outputs.
 
 > [!TIP]
 > [Demo Workflow](https://github.com/m0un10/query-backstage/actions/runs/24987902181)
-👈 highlights the power when combined with
-[Job Summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/)
-and
-[`matrix` strategy](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations).
+> 👈 highlights the power when combined with
+> [Job Summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/)
+> and
+> [`matrix` strategy](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations).
 
 ## Features
 
@@ -87,13 +87,13 @@ The Job Summary then renders as:
 
 Found **5** production components.
 
-| Name             | Namespace  | Owner    | Type    |
-| ---------------- | ---------- | -------- | ------- |
-| `petstore`       | `default`  | team-a   | service |
-| `wayback-search` | `default`  | team-b   | service |
-| `artist-lookup`  | `default`  | team-c   | service |
-| `playback-order` | `default`  | team-a   | service |
-| `searcher`       | `default`  | team-b   | service |
+| Name             | Namespace | Owner  | Type    |
+| ---------------- | --------- | ------ | ------- |
+| `petstore`       | `default` | team-a | service |
+| `wayback-search` | `default` | team-b | service |
+| `artist-lookup`  | `default` | team-c | service |
+| `playback-order` | `default` | team-a | service |
+| `searcher`       | `default` | team-b | service |
 
 ---
 

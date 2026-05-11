@@ -5,3 +5,9 @@ quiet: true
 skip-path:
   - coverage
   - node_modules
+skip-check:
+  # CKV_GHA_7 forbids workflow_dispatch inputs to protect release-build
+  # provenance. The repo's example workflows are documentation that need
+  # user-supplied inputs (component name, lifecycle, etc.) to be useful;
+  # they do not produce released artifacts, so the rule does not apply.
+  - CKV_GHA_7

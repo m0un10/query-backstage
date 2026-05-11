@@ -25,10 +25,34 @@ Catalog and exposes results as workflow outputs.
 
 ---
 
+## 💡 Use Cases
+
+- 🧾 **Enrich CI/CD with catalog metadata** — pull team, system, lifecycle, or
+  annotations from Backstage and feed them into downstream steps
+  ([example](.github/workflows/example-enrich-metadata.yml))
+- 🔔 **Route notifications or approvals by ownership** — look up the owning
+  team/group and address messages, mentions, or required reviewers to them
+  ([example](.github/workflows/example-route-notifications.yml))
+- 🔗 **Surface links to related tools and docs** — read Backstage annotations
+  and `metadata.links` (source repo, TechDocs, dashboards, runbooks) and render
+  them in a job summary or PR comment
+  ([example](.github/workflows/example-related-links.yml))
+- 🏷️ **Validate required catalog metadata** — fail CI if a component is
+  missing an owner, system, lifecycle, or other required annotation
+  ([example](.github/workflows/example-validate-metadata.yml))
+- 🎯 **Fan out matrix jobs across catalog entities** — feed `entity_refs_json`
+  into a `matrix` strategy to run a job per service, API, or resource
+  ([example](.github/workflows/demo-backstage-catalog.yml))
+- 🚦 **Gate deploys on catalog state** — block a deploy unless the target
+  component is registered in the catalog with the expected lifecycle
+  ([example](.github/workflows/example-gate-deploy.yml))
+
+---
+
 ## Example: render results in the Job Summary
 
 A complete workflow that queries the
-[public Backstage demo](https://demo.backstage.io) and writes a markdown report
+[public Backstage demo](https://demo.backstage.io) and writes a Markdown report
 into the run's
 [Job Summary](https://docs.github.com/en/actions/how-tos/writing-workflows/choose-what-your-workflow-does/adding-a-job-summary):
 

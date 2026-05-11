@@ -1,0 +1,61 @@
+# Demonstrates enriching downstream CI steps with catalog metadata.
+# The deploy step is mocked — in real usage you would pass these values to a
+# deploy script, build manifest, release tag, or container label.
+name: Example – Enrich CI with Catalog Metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to look up
+        required: true
+        default: wayback-search
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Look up catalog metadata
+        id: lookup
+        uses: ./
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          name: ${{ inputs.component }}
+          fields: metadata.name,spec.owner,spec.system,spec.lifecycle,spec.type
+          fail_on_empty: 'true'
+
+      - name: Mock deploy with enriched metadata
+        env:
+          ENTITY: ${{ steps.lookup.outputs.first_entity_json }}
+        run: |
+          OWNER=$(printf '%s' "$ENTITY"     | jq -r '.spec.owner')
+          SYSTEM=$(printf '%s' "$ENTITY"    | jq -r '.spec.system    // "—"')
+          LIFECYCLE=$(printf '%s' "$ENTITY" | jq -r '.spec.lifecycle // "—"')
+          TYPE=$(printf '%s' "$ENTITY"      | jq -r '.spec.type      // "—"')
+
+          # Mocked — in real usage, pass these to a deploy script:
+          #   ./deploy.sh \
+          #     --owner    "$OWNER" \
+          #     --system   "$SYSTEM" \
+          #     --lifecycle "$LIFECYCLE"
+          echo "::notice::Deploying ${{ inputs.component }} (owner=$OWNER, system=$SYSTEM, lifecycle=$LIFECYCLE)"
+
+          {
+            echo "## 🧾 Enriched Deploy Metadata"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Component | \`${{ inputs.component }}\` |"
+            echo "| Owner | \`$OWNER\` |"
+            echo "| System | \`$SYSTEM\` |"
+            echo "| Lifecycle | \`$LIFECYCLE\` |"
+            echo "| Type | \`$TYPE\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

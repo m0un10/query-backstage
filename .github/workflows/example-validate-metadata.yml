@@ -1,0 +1,63 @@
+# Demonstrates failing CI when production catalog entries are missing required
+# metadata. Useful as a PR check or scheduled audit.
+name: Example – Validate Required Catalog Metadata
+
+on:
+  workflow_dispatch:
+  # Uncomment to run as a periodic catalog hygiene check:
+  # schedule:
+  #   - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Fetch all production components
+        id: query
+        uses: ./
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          lifecycle: production
+          fields: kind,metadata.name,metadata.namespace,spec.owner,spec.system
+
+      - name: Check required fields
+        env:
+          ENTITIES: ${{ steps.query.outputs.entities_json }}
+        run: |
+          MISSING=$(printf '%s' "$ENTITIES" | jq -r '
+            .[]
+            | select((.spec.owner // "") == "" or (.spec.system // "") == "")
+            | "\(.kind):\(.metadata.namespace)/\(.metadata.name) — missing: " +
+              ([
+                (if (.spec.owner  // "") == "" then "owner"  else empty end),
+                (if (.spec.system // "") == "" then "system" else empty end)
+              ] | join(", "))
+          ')
+
+          if [ -n "$MISSING" ]; then
+            {
+              echo "## 🏷️ Catalog Validation Failed"
+              echo ""
+              echo "The following production components are missing required metadata:"
+              echo ""
+              echo '```'
+              printf '%s\n' "$MISSING"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::One or more production components are missing required metadata"
+            exit 1
+          fi
+
+          {
+            echo "## ✅ Catalog Validation Passed"
+            echo ""
+            echo "All production components have an owner and system."
+          } >> "$GITHUB_STEP_SUMMARY"

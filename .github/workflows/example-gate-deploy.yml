@@ -1,0 +1,48 @@
+# Demonstrates blocking a deploy unless the target component is registered in
+# the catalog with the expected lifecycle. The deploy step is mocked.
+name: Example – Gate Deploy on Catalog State
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to deploy
+        required: true
+        default: wayback-search
+      required_lifecycle:
+        description: Lifecycle the component must be in to allow deploy
+        required: true
+        default: production
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Confirm component is registered with expected lifecycle
+        id: gate
+        uses: ./
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          name: ${{ inputs.component }}
+          lifecycle: ${{ inputs.required_lifecycle }}
+          fail_on_empty: 'true'
+
+      - name: Mock deploy
+        run: |
+          # Mocked — in real usage, this is where you'd kick off the deploy:
+          #   ./deploy.sh "${{ inputs.component }}"
+          echo "::notice::Catalog gate passed — deploying ${{ inputs.component }}"
+
+          {
+            echo "## 🚦 Deploy gate"
+            echo ""
+            echo "Component \`${{ inputs.component }}\` is registered in Backstage with lifecycle \`${{ inputs.required_lifecycle }}\`. Proceeding."
+          } >> "$GITHUB_STEP_SUMMARY"

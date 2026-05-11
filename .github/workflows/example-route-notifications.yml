@@ -1,0 +1,59 @@
+# Demonstrates routing a notification (or approval request) to the team that
+# owns a component, based on Backstage catalog ownership. The Slack call is
+# mocked — swap in your real webhook to send for real.
+name: Example – Route Notifications by Ownership
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component whose owner should be notified
+        required: true
+        default: wayback-search
+
+permissions:
+  contents: read
+
+jobs:
+  notify-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Find owner of ${{ inputs.component }}
+        id: lookup
+        uses: ./
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          name: ${{ inputs.component }}
+          fields: metadata.name,spec.owner
+          fail_on_empty: 'true'
+
+      - name: Mock Slack notification to owning team
+        env:
+          ENTITY: ${{ steps.lookup.outputs.first_entity_json }}
+        run: |
+          OWNER=$(printf '%s' "$ENTITY" | jq -r '.spec.owner')
+          # Backstage owners are usually `group:team-x` or `user:alice`.
+          # Strip the kind prefix to derive a Slack channel name.
+          CHANNEL="#${OWNER#group:}"
+          CHANNEL="${CHANNEL#user:}"
+
+          # Mocked — in real usage:
+          #   curl -X POST -H 'Content-type: application/json' \
+          #     --data "{\"channel\":\"$CHANNEL\",\"text\":\"Build failed for ${{ inputs.component }}\"}" \
+          #     "$SLACK_WEBHOOK_URL"
+          echo "::notice::Would notify $OWNER via Slack channel $CHANNEL"
+
+          {
+            echo "## 🔔 Notification routed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Component | \`${{ inputs.component }}\` |"
+            echo "| Owner | \`$OWNER\` |"
+            echo "| Slack channel | \`$CHANNEL\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

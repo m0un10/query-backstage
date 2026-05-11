@@ -1,0 +1,88 @@
+# Approximates the language coverage of .github/workflows/linter.yml
+# (super-linter) for local pre-commit runs. Super-linter does not publish
+# a .pre-commit-hooks.yaml, so we wire up the underlying linters directly
+# and reuse the existing config files at the repo root.
+#
+# Install:  pipx install pre-commit && pre-commit install
+# Run all:  pre-commit run --all-files
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+        exclude: ^(dist|coverage|node_modules|badges)/
+      - id: trailing-whitespace
+        exclude: ^(dist|coverage|node_modules|badges)/
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^\.licenses/
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdown-lint.yml]
+
+  # Match super-linter (linter.yml) which runs yamllint without --strict, so
+  # warnings surface but do not fail the hook. See .yaml-lint.yml for rules.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: [--config-file, .yaml-lint.yml]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        args: [-config-file, actionlint.yml]
+
+  # System-language hooks call locally installed tools so the dev environment
+  # is shared across pre-commit and direct CLI use. Install on macOS via:
+  #   brew install shellcheck checkov
+  # Linux: apt-get install shellcheck && pipx install checkov.
+  # prettier / eslint / textlint use the project-pinned npm versions.
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        language: system
+        entry: shellcheck
+        types: [shell]
+        exclude: ^(node_modules|dist)/
+
+      # Upstream's checkov pre-commit hook only matches *.tf, so workflow
+      # CKV_GHA_* checks would never trigger. always_run with -d . matches
+      # super-linter's coverage of the whole repo.
+      - id: checkov
+        name: checkov
+        language: system
+        entry: checkov --config-file .checkov.yml -d .
+        always_run: true
+        pass_filenames: false
+
+      - id: prettier
+        name: prettier
+        language: system
+        entry: npx prettier --check
+        types_or: [javascript, jsx, ts, tsx, json, yaml, markdown, css, html]
+        exclude: ^(dist|coverage|node_modules)/
+
+      - id: eslint
+        name: eslint
+        language: system
+        entry: npx eslint
+        files: \.(js|mjs|cjs|jsx|ts|tsx)$
+        exclude: ^(dist|coverage|node_modules)/
+
+      # Mirrors super-linter's NATURAL_LANGUAGE check (textlint terminology).
+      # Config in .textlintrc matches the super-linter default template.
+      - id: textlint
+        name: textlint
+        language: system
+        entry: npx textlint
+        types: [markdown]
+        exclude: ^(dist|coverage|node_modules|\.licenses)/

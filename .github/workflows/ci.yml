@@ -53,12 +53,22 @@ jobs:
         id: checkout
         uses: actions/checkout@v6
 
-      - name: Test Local Action
+      - name: Test Local Action (no-auth query against demo.backstage.io)
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          max_entities: 5
 
-      - name: Print Output
+      - name: Print Outputs
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: |-
+          echo "${{ steps.test-action.outputs.count }}"
+          echo "${{ steps.test-action.outputs.entities_json }}"
+          echo "${{ steps.test-action.outputs.entity_refs_json }}"
+          echo "${{ steps.test-action.outputs.entity_names_json }}"
+          echo "${{ steps.test-action.outputs.first_entity_json }}"
+          echo "${{ steps.test-action.outputs.has_results }}"
+          echo "${{ steps.test-action.outputs.raw_response_json }}"

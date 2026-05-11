@@ -1,8 +1,8 @@
 import * as os from 'os';
-import os__default from 'os';
+import os__default, { EOL } from 'os';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import { promises } from 'fs';
+import { promises, constants as constants$5 } from 'fs';
 import 'path';
 import http from 'http';
 import https from 'https';
@@ -932,6 +932,24 @@ function requireErrors () {
 	  [kSecureProxyConnectionError] = true
 	}
 
+	const kMessageSizeExceededError = Symbol.for('undici.error.UND_ERR_WS_MESSAGE_SIZE_EXCEEDED');
+	class MessageSizeExceededError extends UndiciError {
+	  constructor (message) {
+	    super(message);
+	    this.name = 'MessageSizeExceededError';
+	    this.message = message || 'Max decompressed message size exceeded';
+	    this.code = 'UND_ERR_WS_MESSAGE_SIZE_EXCEEDED';
+	  }
+
+	  static [Symbol.hasInstance] (instance) {
+	    return instance && instance[kMessageSizeExceededError] === true
+	  }
+
+	  get [kMessageSizeExceededError] () {
+	    return true
+	  }
+	}
+
 	errors = {
 	  AbortError,
 	  HTTPParserError,
@@ -955,7 +973,8 @@ function requireErrors () {
 	  ResponseExceededMaxSizeError,
 	  RequestRetryError,
 	  ResponseError,
-	  SecureProxyConnectionError
+	  SecureProxyConnectionError,
+	  MessageSizeExceededError
 	};
 	return errors;
 }
@@ -2256,6 +2275,10 @@ function requireRequest$1 () {
 	      throw new InvalidArgumentError('upgrade must be a string')
 	    }
 
+	    if (upgrade && !isValidHeaderValue(upgrade)) {
+	      throw new InvalidArgumentError('invalid upgrade header')
+	    }
+
 	    if (headersTimeout != null && (!Number.isFinite(headersTimeout) || headersTimeout < 0)) {
 	      throw new InvalidArgumentError('invalid headersTimeout')
 	    }
@@ -2550,13 +2573,19 @@ function requireRequest$1 () {
 	    val = `${val}`;
 	  }
 
-	  if (request.host === null && headerName === 'host') {
+	  if (headerName === 'host') {
+	    if (request.host !== null) {
+	      throw new InvalidArgumentError('duplicate host header')
+	    }
 	    if (typeof val !== 'string') {
 	      throw new InvalidArgumentError('invalid host header')
 	    }
 	    // Consumed by Client
 	    request.host = val;
-	  } else if (request.contentLength === null && headerName === 'content-length') {
+	  } else if (headerName === 'content-length') {
+	    if (request.contentLength !== null) {
+	      throw new InvalidArgumentError('duplicate content-length header')
+	    }
 	    request.contentLength = parseInt(val, 10);
 	    if (!Number.isFinite(request.contentLength)) {
 	      throw new InvalidArgumentError('invalid content-length header')
@@ -2677,15 +2706,23 @@ function requireDispatcherBase () {
 	const kOnDestroyed = Symbol('onDestroyed');
 	const kOnClosed = Symbol('onClosed');
 	const kInterceptedDispatch = Symbol('Intercepted Dispatch');
+	const kWebSocketOptions = Symbol('webSocketOptions');
 
 	class DispatcherBase extends Dispatcher {
-	  constructor () {
+	  constructor (opts) {
 	    super();
 
 	    this[kDestroyed] = false;
 	    this[kOnDestroyed] = null;
 	    this[kClosed] = false;
 	    this[kOnClosed] = [];
+	    this[kWebSocketOptions] = opts?.webSocket ?? {};
+	  }
+
+	  get webSocketOptions () {
+	    return {
+	      maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024
+	    }
 	  }
 
 	  get destroyed () {
@@ -11063,9 +11100,10 @@ function requireClient () {
 	    autoSelectFamilyAttemptTimeout,
 	    // h2
 	    maxConcurrentStreams,
-	    allowH2
+	    allowH2,
+	    webSocket
 	  } = {}) {
-	    super();
+	    super({ webSocket });
 
 	    if (keepAlive !== undefined) {
 	      throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -11772,8 +11810,8 @@ function requirePoolBase () {
 	const kStats = Symbol('stats');
 
 	class PoolBase extends DispatcherBase {
-	  constructor () {
-	    super();
+	  constructor (opts) {
+	    super(opts);
 
 	    this[kQueue] = new FixedQueue();
 	    this[kClients] = [];
@@ -11992,8 +12030,6 @@ function requirePool () {
 	    allowH2,
 	    ...options
 	  } = {}) {
-	    super();
-
 	    if (connections != null && (!Number.isFinite(connections) || connections < 0)) {
 	      throw new InvalidArgumentError('invalid connections')
 	    }
@@ -12017,6 +12053,8 @@ function requirePool () {
 	        ...connect
 	      });
 	    }
+
+	    super(options);
 
 	    this[kInterceptors] = options.interceptors?.Pool && Array.isArray(options.interceptors.Pool)
 	      ? options.interceptors.Pool
@@ -12311,7 +12349,6 @@ function requireAgent () {
 
 	class Agent extends DispatcherBase {
 	  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
-	    super();
 
 	    if (typeof factory !== 'function') {
 	      throw new InvalidArgumentError('factory must be a function.')
@@ -12324,6 +12361,8 @@ function requireAgent () {
 	    if (!Number.isInteger(maxRedirections) || maxRedirections < 0) {
 	      throw new InvalidArgumentError('maxRedirections must be a positive number')
 	    }
+
+	    super(options);
 
 	    if (connect && typeof connect !== 'function') {
 	      connect = { ...connect };
@@ -24913,6 +24952,12 @@ function requireUtil$1 () {
 	 * @param {string} value
 	 */
 	function isValidClientWindowBits (value) {
+	  // Must have at least one character
+	  if (value.length === 0) {
+	    return false
+	  }
+
+	  // Check all characters are ASCII digits
 	  for (let i = 0; i < value.length; i++) {
 	    const byte = value.charCodeAt(i);
 
@@ -24921,7 +24966,9 @@ function requireUtil$1 () {
 	    }
 	  }
 
-	  return true
+	  // Check numeric range: zlib requires windowBits in range 8-15
+	  const num = Number.parseInt(value, 10);
+	  return num >= 8 && num <= 15
 	}
 
 	// https://nodejs.org/api/intl.html#detecting-internationalization-support
@@ -25451,6 +25498,7 @@ function requirePermessageDeflate () {
 
 	const { createInflateRaw, Z_DEFAULT_WINDOWBITS } = require$$1$2;
 	const { isValidClientWindowBits } = requireUtil$1();
+	const { MessageSizeExceededError } = requireErrors();
 
 	const tail = Buffer.from([0x00, 0x00, 0xff, 0xff]);
 	const kBuffer = Symbol('kBuffer');
@@ -25462,17 +25510,29 @@ function requirePermessageDeflate () {
 
 	  #options = {}
 
-	  constructor (extensions) {
+	  #maxPayloadSize = 0
+
+	  /**
+	   * @param {Map<string, string>} extensions
+	   */
+	  constructor (extensions, options) {
 	    this.#options.serverNoContextTakeover = extensions.has('server_no_context_takeover');
 	    this.#options.serverMaxWindowBits = extensions.get('server_max_window_bits');
+
+	    this.#maxPayloadSize = options.maxPayloadSize;
 	  }
 
+	  /**
+	   * Decompress a compressed payload.
+	   * @param {Buffer} chunk Compressed data
+	   * @param {boolean} fin Final fragment flag
+	   * @param {Function} callback Callback function
+	   */
 	  decompress (chunk, fin, callback) {
 	    // An endpoint uses the following algorithm to decompress a message.
 	    // 1.  Append 4 octets of 0x00 0x00 0xff 0xff to the tail end of the
 	    //     payload of the message.
 	    // 2.  Decompress the resulting data using DEFLATE.
-
 	    if (!this.#inflate) {
 	      let windowBits = Z_DEFAULT_WINDOWBITS;
 
@@ -25485,13 +25545,26 @@ function requirePermessageDeflate () {
 	        windowBits = Number.parseInt(this.#options.serverMaxWindowBits);
 	      }
 
-	      this.#inflate = createInflateRaw({ windowBits });
+	      try {
+	        this.#inflate = createInflateRaw({ windowBits });
+	      } catch (err) {
+	        callback(err);
+	        return
+	      }
 	      this.#inflate[kBuffer] = [];
 	      this.#inflate[kLength] = 0;
 
 	      this.#inflate.on('data', (data) => {
-	        this.#inflate[kBuffer].push(data);
 	        this.#inflate[kLength] += data.length;
+
+	        if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
+	          callback(new MessageSizeExceededError());
+	          this.#inflate.removeAllListeners();
+	          this.#inflate = null;
+	          return
+	        }
+
+	        this.#inflate[kBuffer].push(data);
 	      });
 
 	      this.#inflate.on('error', (err) => {
@@ -25506,6 +25579,10 @@ function requirePermessageDeflate () {
 	    }
 
 	    this.#inflate.flush(() => {
+	      if (!this.#inflate) {
+	        return
+	      }
+
 	      const full = Buffer.concat(this.#inflate[kBuffer], this.#inflate[kLength]);
 
 	      this.#inflate[kBuffer].length = 0;
@@ -25545,6 +25622,7 @@ function requireReceiver () {
 	const { WebsocketFrameSend } = requireFrame();
 	const { closeWebSocketConnection } = requireConnection();
 	const { PerMessageDeflate } = requirePermessageDeflate();
+	const { MessageSizeExceededError } = requireErrors();
 
 	// This code was influenced by ws released under the MIT license.
 	// Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
@@ -25553,6 +25631,7 @@ function requireReceiver () {
 
 	class ByteParser extends Writable {
 	  #buffers = []
+	  #fragmentsBytes = 0
 	  #byteOffset = 0
 	  #loop = false
 
@@ -25564,14 +25643,23 @@ function requireReceiver () {
 	  /** @type {Map<string, PerMessageDeflate>} */
 	  #extensions
 
-	  constructor (ws, extensions) {
+	  /** @type {number} */
+	  #maxPayloadSize
+
+	  /**
+	   * @param {import('./websocket').WebSocket} ws
+	   * @param {Map<string, string>|null} extensions
+	   * @param {{ maxPayloadSize?: number }} [options]
+	   */
+	  constructor (ws, extensions, options = {}) {
 	    super();
 
 	    this.ws = ws;
 	    this.#extensions = extensions == null ? new Map() : extensions;
+	    this.#maxPayloadSize = options.maxPayloadSize ?? 0;
 
 	    if (this.#extensions.has('permessage-deflate')) {
-	      this.#extensions.set('permessage-deflate', new PerMessageDeflate(extensions));
+	      this.#extensions.set('permessage-deflate', new PerMessageDeflate(extensions, options));
 	    }
 	  }
 
@@ -25585,6 +25673,19 @@ function requireReceiver () {
 	    this.#loop = true;
 
 	    this.run(callback);
+	  }
+
+	  #validatePayloadLength () {
+	    if (
+	      this.#maxPayloadSize > 0 &&
+	      !isControlFrame(this.#info.opcode) &&
+	      this.#info.payloadLength > this.#maxPayloadSize
+	    ) {
+	      failWebsocketConnection(this.ws, 'Payload size exceeds maximum allowed size');
+	      return false
+	    }
+
+	    return true
 	  }
 
 	  /**
@@ -25675,6 +25776,10 @@ function requireReceiver () {
 	        if (payloadLength <= 125) {
 	          this.#info.payloadLength = payloadLength;
 	          this.#state = parserStates.READ_DATA;
+
+	          if (!this.#validatePayloadLength()) {
+	            return
+	          }
 	        } else if (payloadLength === 126) {
 	          this.#state = parserStates.PAYLOADLENGTH_16;
 	        } else if (payloadLength === 127) {
@@ -25699,6 +25804,10 @@ function requireReceiver () {
 
 	        this.#info.payloadLength = buffer.readUInt16BE(0);
 	        this.#state = parserStates.READ_DATA;
+
+	        if (!this.#validatePayloadLength()) {
+	          return
+	        }
 	      } else if (this.#state === parserStates.PAYLOADLENGTH_64) {
 	        if (this.#byteOffset < 8) {
 	          return callback()
@@ -25706,6 +25815,7 @@ function requireReceiver () {
 
 	        const buffer = this.consume(8);
 	        const upper = buffer.readUInt32BE(0);
+	        const lower = buffer.readUInt32BE(4);
 
 	        // 2^31 is the maximum bytes an arraybuffer can contain
 	        // on 32-bit systems. Although, on 64-bit systems, this is
@@ -25713,15 +25823,17 @@ function requireReceiver () {
 	        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length
 	        // https://source.chromium.org/chromium/chromium/src/+/main:v8/src/common/globals.h;drc=1946212ac0100668f14eb9e2843bdd846e510a1e;bpv=1;bpt=1;l=1275
 	        // https://source.chromium.org/chromium/chromium/src/+/main:v8/src/objects/js-array-buffer.h;l=34;drc=1946212ac0100668f14eb9e2843bdd846e510a1e
-	        if (upper > 2 ** 31 - 1) {
+	        if (upper !== 0 || lower > 2 ** 31 - 1) {
 	          failWebsocketConnection(this.ws, 'Received payload length > 2^31 bytes.');
 	          return
 	        }
 
-	        const lower = buffer.readUInt32BE(4);
-
-	        this.#info.payloadLength = (upper << 8) + lower;
+	        this.#info.payloadLength = lower;
 	        this.#state = parserStates.READ_DATA;
+
+	        if (!this.#validatePayloadLength()) {
+	          return
+	        }
 	      } else if (this.#state === parserStates.READ_DATA) {
 	        if (this.#byteOffset < this.#info.payloadLength) {
 	          return callback()
@@ -25734,42 +25846,53 @@ function requireReceiver () {
 	          this.#state = parserStates.INFO;
 	        } else {
 	          if (!this.#info.compressed) {
-	            this.#fragments.push(body);
+	            this.writeFragments(body);
+
+	            if (this.#maxPayloadSize > 0 && this.#fragmentsBytes > this.#maxPayloadSize) {
+	              failWebsocketConnection(this.ws, new MessageSizeExceededError().message);
+	              return
+	            }
 
 	            // If the frame is not fragmented, a message has been received.
 	            // If the frame is fragmented, it will terminate with a fin bit set
 	            // and an opcode of 0 (continuation), therefore we handle that when
 	            // parsing continuation frames, not here.
 	            if (!this.#info.fragmented && this.#info.fin) {
-	              const fullMessage = Buffer.concat(this.#fragments);
-	              websocketMessageReceived(this.ws, this.#info.binaryType, fullMessage);
-	              this.#fragments.length = 0;
+	              websocketMessageReceived(this.ws, this.#info.binaryType, this.consumeFragments());
 	            }
 
 	            this.#state = parserStates.INFO;
 	          } else {
-	            this.#extensions.get('permessage-deflate').decompress(body, this.#info.fin, (error, data) => {
-	              if (error) {
-	                closeWebSocketConnection(this.ws, 1007, error.message, error.message.length);
-	                return
-	              }
+	            this.#extensions.get('permessage-deflate').decompress(
+	              body,
+	              this.#info.fin,
+	              (error, data) => {
+	                if (error) {
+	                  failWebsocketConnection(this.ws, error.message);
+	                  return
+	                }
 
-	              this.#fragments.push(data);
+	                this.writeFragments(data);
 
-	              if (!this.#info.fin) {
-	                this.#state = parserStates.INFO;
+	                if (this.#maxPayloadSize > 0 && this.#fragmentsBytes > this.#maxPayloadSize) {
+	                  failWebsocketConnection(this.ws, new MessageSizeExceededError().message);
+	                  return
+	                }
+
+	                if (!this.#info.fin) {
+	                  this.#state = parserStates.INFO;
+	                  this.#loop = true;
+	                  this.run(callback);
+	                  return
+	                }
+
+	                websocketMessageReceived(this.ws, this.#info.binaryType, this.consumeFragments());
+
 	                this.#loop = true;
+	                this.#state = parserStates.INFO;
 	                this.run(callback);
-	                return
 	              }
-
-	              websocketMessageReceived(this.ws, this.#info.binaryType, Buffer.concat(this.#fragments));
-
-	              this.#loop = true;
-	              this.#state = parserStates.INFO;
-	              this.#fragments.length = 0;
-	              this.run(callback);
-	            });
+	            );
 
 	            this.#loop = false;
 	            break
@@ -25819,6 +25942,26 @@ function requireReceiver () {
 	    this.#byteOffset -= n;
 
 	    return buffer
+	  }
+
+	  writeFragments (fragment) {
+	    this.#fragmentsBytes += fragment.length;
+	    this.#fragments.push(fragment);
+	  }
+
+	  consumeFragments () {
+	    const fragments = this.#fragments;
+
+	    if (fragments.length === 1) {
+	      this.#fragmentsBytes = 0;
+	      return fragments.shift()
+	    }
+
+	    const output = Buffer.concat(fragments, this.#fragmentsBytes);
+	    this.#fragments = [];
+	    this.#fragmentsBytes = 0;
+
+	    return output
 	  }
 
 	  parseCloseBody (data) {
@@ -26502,11 +26645,15 @@ function requireWebsocket () {
 	   * @see https://websockets.spec.whatwg.org/#feedback-from-the-protocol
 	   */
 	  #onConnectionEstablished (response, parsedExtensions) {
-	    // processResponse is called when the "response’s header list has been received and initialized."
+	    // processResponse is called when the "response's header list has been received and initialized."
 	    // once this happens, the connection is open
 	    this[kResponse] = response;
 
-	    const parser = new ByteParser(this, parsedExtensions);
+	    const maxPayloadSize = this[kController]?.dispatcher?.webSocketOptions?.maxPayloadSize;
+
+	    const parser = new ByteParser(this, parsedExtensions, {
+	      maxPayloadSize
+	    });
 	    parser.on('drain', onParserDrain);
 	    parser.on('error', onParserError.bind(this));
 
@@ -27859,7 +28006,7 @@ var MediaTypes;
     });
 };
 
-(undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -27869,6 +28016,268 @@ var MediaTypes;
     });
 };
 const { access, appendFile, writeFile } = promises;
+const SUMMARY_ENV_VAR = 'GITHUB_STEP_SUMMARY';
+class Summary {
+    constructor() {
+        this._buffer = '';
+    }
+    /**
+     * Finds the summary file path from the environment, rejects if env var is not found or file does not exist
+     * Also checks r/w permissions.
+     *
+     * @returns step summary file path
+     */
+    filePath() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this._filePath) {
+                return this._filePath;
+            }
+            const pathFromEnv = process.env[SUMMARY_ENV_VAR];
+            if (!pathFromEnv) {
+                throw new Error(`Unable to find environment variable for $${SUMMARY_ENV_VAR}. Check if your runtime environment supports job summaries.`);
+            }
+            try {
+                yield access(pathFromEnv, constants$5.R_OK | constants$5.W_OK);
+            }
+            catch (_a) {
+                throw new Error(`Unable to access summary file: '${pathFromEnv}'. Check if the file has correct read/write permissions.`);
+            }
+            this._filePath = pathFromEnv;
+            return this._filePath;
+        });
+    }
+    /**
+     * Wraps content in an HTML tag, adding any HTML attributes
+     *
+     * @param {string} tag HTML tag to wrap
+     * @param {string | null} content content within the tag
+     * @param {[attribute: string]: string} attrs key-value list of HTML attributes to add
+     *
+     * @returns {string} content wrapped in HTML element
+     */
+    wrap(tag, content, attrs = {}) {
+        const htmlAttrs = Object.entries(attrs)
+            .map(([key, value]) => ` ${key}="${value}"`)
+            .join('');
+        if (!content) {
+            return `<${tag}${htmlAttrs}>`;
+        }
+        return `<${tag}${htmlAttrs}>${content}</${tag}>`;
+    }
+    /**
+     * Writes text in the buffer to the summary buffer file and empties buffer. Will append by default.
+     *
+     * @param {SummaryWriteOptions} [options] (optional) options for write operation
+     *
+     * @returns {Promise<Summary>} summary instance
+     */
+    write(options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const overwrite = !!(options === null || options === void 0 ? void 0 : options.overwrite);
+            const filePath = yield this.filePath();
+            const writeFunc = overwrite ? writeFile : appendFile;
+            yield writeFunc(filePath, this._buffer, { encoding: 'utf8' });
+            return this.emptyBuffer();
+        });
+    }
+    /**
+     * Clears the summary buffer and wipes the summary file
+     *
+     * @returns {Summary} summary instance
+     */
+    clear() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.emptyBuffer().write({ overwrite: true });
+        });
+    }
+    /**
+     * Returns the current summary buffer as a string
+     *
+     * @returns {string} string of summary buffer
+     */
+    stringify() {
+        return this._buffer;
+    }
+    /**
+     * If the summary buffer is empty
+     *
+     * @returns {boolen} true if the buffer is empty
+     */
+    isEmptyBuffer() {
+        return this._buffer.length === 0;
+    }
+    /**
+     * Resets the summary buffer without writing to summary file
+     *
+     * @returns {Summary} summary instance
+     */
+    emptyBuffer() {
+        this._buffer = '';
+        return this;
+    }
+    /**
+     * Adds raw text to the summary buffer
+     *
+     * @param {string} text content to add
+     * @param {boolean} [addEOL=false] (optional) append an EOL to the raw text (default: false)
+     *
+     * @returns {Summary} summary instance
+     */
+    addRaw(text, addEOL = false) {
+        this._buffer += text;
+        return addEOL ? this.addEOL() : this;
+    }
+    /**
+     * Adds the operating system-specific end-of-line marker to the buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addEOL() {
+        return this.addRaw(EOL);
+    }
+    /**
+     * Adds an HTML codeblock to the summary buffer
+     *
+     * @param {string} code content to render within fenced code block
+     * @param {string} lang (optional) language to syntax highlight code
+     *
+     * @returns {Summary} summary instance
+     */
+    addCodeBlock(code, lang) {
+        const attrs = Object.assign({}, (lang && { lang }));
+        const element = this.wrap('pre', this.wrap('code', code), attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML list to the summary buffer
+     *
+     * @param {string[]} items list of items to render
+     * @param {boolean} [ordered=false] (optional) if the rendered list should be ordered or not (default: false)
+     *
+     * @returns {Summary} summary instance
+     */
+    addList(items, ordered = false) {
+        const tag = ordered ? 'ol' : 'ul';
+        const listItems = items.map(item => this.wrap('li', item)).join('');
+        const element = this.wrap(tag, listItems);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML table to the summary buffer
+     *
+     * @param {SummaryTableCell[]} rows table rows
+     *
+     * @returns {Summary} summary instance
+     */
+    addTable(rows) {
+        const tableBody = rows
+            .map(row => {
+            const cells = row
+                .map(cell => {
+                if (typeof cell === 'string') {
+                    return this.wrap('td', cell);
+                }
+                const { header, data, colspan, rowspan } = cell;
+                const tag = header ? 'th' : 'td';
+                const attrs = Object.assign(Object.assign({}, (colspan && { colspan })), (rowspan && { rowspan }));
+                return this.wrap(tag, data, attrs);
+            })
+                .join('');
+            return this.wrap('tr', cells);
+        })
+            .join('');
+        const element = this.wrap('table', tableBody);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds a collapsable HTML details element to the summary buffer
+     *
+     * @param {string} label text for the closed state
+     * @param {string} content collapsable content
+     *
+     * @returns {Summary} summary instance
+     */
+    addDetails(label, content) {
+        const element = this.wrap('details', this.wrap('summary', label) + content);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML image tag to the summary buffer
+     *
+     * @param {string} src path to the image you to embed
+     * @param {string} alt text description of the image
+     * @param {SummaryImageOptions} options (optional) addition image attributes
+     *
+     * @returns {Summary} summary instance
+     */
+    addImage(src, alt, options) {
+        const { width, height } = options || {};
+        const attrs = Object.assign(Object.assign({}, (width && { width })), (height && { height }));
+        const element = this.wrap('img', null, Object.assign({ src, alt }, attrs));
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML section heading element
+     *
+     * @param {string} text heading text
+     * @param {number | string} [level=1] (optional) the heading level, default: 1
+     *
+     * @returns {Summary} summary instance
+     */
+    addHeading(text, level) {
+        const tag = `h${level}`;
+        const allowedTag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)
+            ? tag
+            : 'h1';
+        const element = this.wrap(allowedTag, text);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML thematic break (<hr>) to the summary buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addSeparator() {
+        const element = this.wrap('hr', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML line break (<br>) to the summary buffer
+     *
+     * @returns {Summary} summary instance
+     */
+    addBreak() {
+        const element = this.wrap('br', null);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML blockquote to the summary buffer
+     *
+     * @param {string} text quote text
+     * @param {string} cite (optional) citation url
+     *
+     * @returns {Summary} summary instance
+     */
+    addQuote(text, cite) {
+        const attrs = Object.assign({}, (cite && { cite }));
+        const element = this.wrap('blockquote', text, attrs);
+        return this.addRaw(element).addEOL();
+    }
+    /**
+     * Adds an HTML anchor tag to the summary buffer
+     *
+     * @param {string} text link text/content
+     * @param {string} href hyperlink
+     *
+     * @returns {Summary} summary instance
+     */
+    addLink(text, href) {
+        const element = this.wrap('a', text, { href });
+        return this.addRaw(element).addEOL();
+    }
+}
+const _summary = new Summary();
+const summary = _summary;
 
 (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -27962,6 +28371,12 @@ var ExitCode;
  */
 function getInput(name, options) {
     const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
+    if (options && options.required && !val) {
+        throw new Error(`Input required and not supplied: ${name}`);
+    }
+    if (options && options.trimWhitespace === false) {
+        return val;
+    }
     return val.trim();
 }
 /**
@@ -28008,17 +28423,491 @@ function error(message, properties = {}) {
 }
 
 /**
- * Waits for a number of milliseconds.
- *
- * @param milliseconds The number of milliseconds to wait.
- * @returns Resolves with 'done!' after the wait is over.
+ * Parses a comma-separated input string into a deduplicated, trimmed array.
+ * Exported for reuse across modules.
  */
-async function wait(milliseconds) {
-    return new Promise((resolve) => {
-        if (isNaN(milliseconds))
-            throw new Error('milliseconds is not a number');
-        setTimeout(() => resolve('done!'), milliseconds);
+function parseCommaList(input) {
+    if (!input.trim())
+        return [];
+    const seen = new Set();
+    const result = [];
+    for (const item of input.split(',')) {
+        const trimmed = item.trim();
+        if (trimmed && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            result.push(trimmed);
+        }
+    }
+    return result;
+}
+/** Maps convenience input names to Backstage catalog filter keys. */
+const CONVENIENCE_KEY_MAP = {
+    kind: 'kind',
+    namespace: 'metadata.namespace',
+    tags: 'metadata.tags',
+    name: 'metadata.name',
+    owner: 'spec.owner',
+    system: 'spec.system',
+    type: 'spec.type',
+    lifecycle: 'spec.lifecycle'
+};
+/**
+ * Parses a single raw filter line into a FilterSet.
+ * Format: `key=value,key2=value2` (comma-separated key=value pairs).
+ */
+function parseRawFilterLine(line) {
+    const filterSet = {};
+    for (const pair of line.split(',')) {
+        const trimmed = pair.trim();
+        if (!trimmed)
+            continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) {
+            throw new Error(`Malformed filter entry "${trimmed}": expected format is key=value`);
+        }
+        const key = trimmed.slice(0, eqIdx).trim();
+        const value = trimmed.slice(eqIdx + 1).trim();
+        if (!filterSet[key])
+            filterSet[key] = [];
+        filterSet[key].push(value);
+    }
+    return filterSet;
+}
+/**
+ * Builds an array of FilterSet objects from action inputs.
+ *
+ * If raw filter lines are provided, each line becomes its own FilterSet with
+ * convenience filters merged in. If no raw filter lines exist, a single
+ * FilterSet is returned containing only the convenience filters (or an empty
+ * array if no filters are set at all).
+ */
+function buildFilterSets(inputs) {
+    // Build convenience filter set
+    const convenience = {};
+    const convenienceInputs = {
+        kind: inputs.kind,
+        namespace: inputs.namespace,
+        tags: inputs.tags,
+        name: inputs.name,
+        owner: inputs.owner,
+        system: inputs.system,
+        type: inputs.type,
+        lifecycle: inputs.lifecycle
+    };
+    for (const [inputKey, values] of Object.entries(convenienceInputs)) {
+        if (values.length > 0) {
+            convenience[CONVENIENCE_KEY_MAP[inputKey]] = values;
+        }
+    }
+    // Parse raw filter lines
+    const rawLines = inputs.filter
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+    if (rawLines.length === 0) {
+        if (Object.keys(convenience).length === 0)
+            return [];
+        return [convenience];
+    }
+    // Merge convenience filters into each raw filter set
+    return rawLines.map((line) => {
+        const rawSet = parseRawFilterLine(line);
+        // Convenience values are added for keys not already present in raw set
+        for (const [key, values] of Object.entries(convenience)) {
+            if (!rawSet[key]) {
+                rawSet[key] = values;
+            }
+        }
+        return rawSet;
     });
+}
+
+function parseBool(value) {
+    return ['true', '1', 'yes'].includes(value.toLowerCase().trim());
+}
+function parseOptionalInt(value) {
+    if (!value.trim())
+        return undefined;
+    const n = parseInt(value, 10);
+    if (isNaN(n))
+        throw new Error(`Expected an integer but got: "${value}"`);
+    return n;
+}
+/**
+ * Parses all GitHub Actions inputs for the query-backstage-catalog action.
+ */
+function parseInputs() {
+    const backstageBaseUrl = getInput('backstage_base_url', { required: true })
+        .replace(/\/$/, '');
+    const catalogPath = getInput('catalog_path') || '/api/catalog';
+    const pageLimit = parseInt(getInput('page_limit') || '500', 10);
+    const maxEntities = parseOptionalInt(getInput('max_entities'));
+    const failOnEmpty = parseBool(getInput('fail_on_empty') || 'false');
+    const includeRawResponse = parseBool(getInput('include_raw_response') || 'false');
+    const debugRequest = parseBool(getInput('debug_request') || 'false');
+    const kind = parseCommaList(getInput('kind'));
+    const namespace = parseCommaList(getInput('namespace'));
+    const tags = parseCommaList(getInput('tags'));
+    const name = parseCommaList(getInput('name'));
+    const owner = parseCommaList(getInput('owner'));
+    const system = parseCommaList(getInput('system'));
+    const type = parseCommaList(getInput('type'));
+    const lifecycle = parseCommaList(getInput('lifecycle'));
+    const filter = getInput('filter');
+    const fields = parseCommaList(getInput('fields'));
+    const orderFieldRaw = getInput('order_field');
+    const orderField = orderFieldRaw.trim() ? orderFieldRaw.trim() : undefined;
+    const orderDirectionRaw = getInput('order_direction')
+        .trim()
+        .toLowerCase();
+    let orderDirection;
+    if (orderDirectionRaw === 'asc' || orderDirectionRaw === 'desc') {
+        orderDirection = orderDirectionRaw;
+    }
+    const fullTextRaw = getInput('full_text').trim();
+    const fullText = fullTextRaw || undefined;
+    const entityRefFormatRaw = getInput('entity_ref_format')
+        .trim()
+        .toLowerCase();
+    const entityRefFormat = entityRefFormatRaw === 'triplet' ? 'triplet' : 'compound';
+    const authModeRaw = getInput('auth_mode').trim().toLowerCase();
+    const validAuthModes = [
+        'none',
+        'bearer_token',
+        'oauth2_client_credentials',
+        'custom_header'
+    ];
+    const authMode = (validAuthModes.includes(authModeRaw) ? authModeRaw : 'bearer_token');
+    const tokenRaw = getInput('token').trim();
+    const token = tokenRaw || undefined;
+    const tokenEnvVarRaw = getInput('token_env_var').trim();
+    const tokenEnvVar = tokenEnvVarRaw || undefined;
+    const customAuthHeaderName = getInput('custom_auth_header_name').trim() || 'Authorization';
+    const customAuthHeaderValueRaw = getInput('custom_auth_header_value')
+        .trim();
+    const customAuthHeaderValue = customAuthHeaderValueRaw || undefined;
+    const oauthTokenUrlRaw = getInput('oauth_token_url').trim();
+    const oauthTokenUrl = oauthTokenUrlRaw || undefined;
+    const oauthClientIdRaw = getInput('oauth_client_id').trim();
+    const oauthClientId = oauthClientIdRaw || undefined;
+    const oauthClientSecretRaw = getInput('oauth_client_secret').trim();
+    const oauthClientSecret = oauthClientSecretRaw || undefined;
+    const oauthScopeRaw = getInput('oauth_scope').trim();
+    const oauthScope = oauthScopeRaw || undefined;
+    const oauthAudienceRaw = getInput('oauth_audience').trim();
+    const oauthAudience = oauthAudienceRaw || undefined;
+    const oauthResourceRaw = getInput('oauth_resource').trim();
+    const oauthResource = oauthResourceRaw || undefined;
+    const timeoutMs = parseInt(getInput('timeout_ms') || '30000', 10);
+    return {
+        backstageBaseUrl,
+        catalogPath,
+        pageLimit,
+        maxEntities,
+        failOnEmpty,
+        includeRawResponse,
+        debugRequest,
+        kind,
+        namespace,
+        tags,
+        name,
+        owner,
+        system,
+        type,
+        lifecycle,
+        filter,
+        fields,
+        orderField,
+        orderDirection,
+        fullText,
+        entityRefFormat,
+        authMode,
+        token,
+        tokenEnvVar,
+        customAuthHeaderName,
+        customAuthHeaderValue,
+        oauthTokenUrl,
+        oauthClientId,
+        oauthClientSecret,
+        oauthScope,
+        oauthAudience,
+        oauthResource,
+        timeoutMs
+    };
+}
+
+/**
+ * Builds authentication headers based on the configured auth mode.
+ * Token values are never logged.
+ */
+async function buildAuthHeaders(inputs) {
+    switch (inputs.authMode) {
+        case 'none':
+            return {};
+        case 'bearer_token': {
+            let token = inputs.token;
+            if (!token && inputs.tokenEnvVar) {
+                token = process.env[inputs.tokenEnvVar];
+            }
+            if (!token) {
+                throw new Error('auth_mode is bearer_token but no token was provided. ' +
+                    'Set the `token` input or `token_env_var` pointing to an environment variable containing the token.');
+            }
+            return { Authorization: `Bearer ${token}` };
+        }
+        case 'oauth2_client_credentials': {
+            if (!inputs.oauthTokenUrl) {
+                throw new Error('auth_mode is oauth2_client_credentials but oauth_token_url is not set.');
+            }
+            if (!inputs.oauthClientId || !inputs.oauthClientSecret) {
+                throw new Error('auth_mode is oauth2_client_credentials but oauth_client_id or oauth_client_secret is not set.');
+            }
+            const params = new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: inputs.oauthClientId,
+                client_secret: inputs.oauthClientSecret
+            });
+            if (inputs.oauthScope)
+                params.set('scope', inputs.oauthScope);
+            if (inputs.oauthAudience)
+                params.set('audience', inputs.oauthAudience);
+            if (inputs.oauthResource)
+                params.set('resource', inputs.oauthResource);
+            debug(`Requesting OAuth2 token from ${inputs.oauthTokenUrl}`);
+            let response;
+            try {
+                response = await fetch(inputs.oauthTokenUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params.toString()
+                });
+            }
+            catch (err) {
+                throw new Error(`Failed to reach OAuth2 token endpoint ${inputs.oauthTokenUrl}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+            }
+            if (!response.ok) {
+                throw new Error(`OAuth2 token request failed with status ${response.status} ${response.statusText}`);
+            }
+            let json;
+            try {
+                json = await response.json();
+            }
+            catch {
+                throw new Error('OAuth2 token endpoint returned non-JSON response.');
+            }
+            const accessToken = json['access_token'];
+            if (typeof accessToken !== 'string' || !accessToken) {
+                throw new Error('OAuth2 token response did not contain a valid access_token field.');
+            }
+            return { Authorization: `Bearer ${accessToken}` };
+        }
+        case 'custom_header': {
+            if (!inputs.customAuthHeaderValue) {
+                throw new Error('auth_mode is custom_header but custom_auth_header_value is not set.');
+            }
+            return { [inputs.customAuthHeaderName]: inputs.customAuthHeaderValue };
+        }
+        default: {
+            const exhaustive = inputs.authMode;
+            throw new Error(`Unknown auth_mode: ${exhaustive}`);
+        }
+    }
+}
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [1000, 2000, 4000];
+function shouldRetry(status) {
+    return status === 429 || status >= 500;
+}
+async function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+/**
+ * Performs a single HTTP request with retry on 429/5xx using exponential backoff.
+ */
+async function fetchWithRetry(url, headers, timeoutMs) {
+    let lastError;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+            const delay = RETRY_DELAYS_MS[attempt - 1];
+            debug(`Retrying request (attempt ${attempt}/${MAX_RETRIES}) after ${delay}ms...`);
+            await sleep(delay);
+        }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        let response;
+        try {
+            response = await fetch(url, { headers, signal: controller.signal });
+        }
+        catch (err) {
+            clearTimeout(timeoutId);
+            const msg = err instanceof Error ? err.message : String(err);
+            if (err instanceof Error && err.name === 'AbortError') {
+                throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`, {
+                    cause: err
+                });
+            }
+            lastError = new Error(`Network error fetching ${url}: ${msg}`, {
+                cause: err
+            });
+            if (attempt < MAX_RETRIES)
+                continue;
+            throw lastError;
+        }
+        clearTimeout(timeoutId);
+        if (!shouldRetry(response.status)) {
+            return response;
+        }
+        lastError = new Error(`Request failed with status ${response.status} ${response.statusText}`);
+        if (attempt < MAX_RETRIES)
+            continue;
+    }
+    throw lastError ?? new Error('Request failed after retries');
+}
+/**
+ * Queries the Backstage Software Catalog using cursor-based pagination.
+ * Supports multiple FilterSets (OR'd), field selection, ordering, and full-text search.
+ */
+async function queryBackstageCatalog(inputs, authHeaders, filterSets) {
+    const baseUrl = `${inputs.backstageBaseUrl}${inputs.catalogPath}/entities/by-query`;
+    const allEntities = [];
+    const rawResponses = [];
+    let cursor;
+    let pageCount = 0;
+    do {
+        const params = new URLSearchParams();
+        // Add filter params - each FilterSet becomes one filter param (AND within set, OR across sets)
+        for (const filterSet of filterSets) {
+            const filterParts = [];
+            for (const [key, values] of Object.entries(filterSet)) {
+                for (const value of values) {
+                    filterParts.push(`${key}=${value}`);
+                }
+            }
+            if (filterParts.length > 0) {
+                params.append('filter', filterParts.join(','));
+            }
+        }
+        params.set('limit', String(inputs.pageLimit));
+        if (inputs.fields.length > 0) {
+            params.set('fields', inputs.fields.join(','));
+        }
+        if (inputs.orderField) {
+            params.set('orderField', inputs.orderField);
+            if (inputs.orderDirection) {
+                params.set('orderDirection', inputs.orderDirection);
+            }
+        }
+        if (inputs.fullText) {
+            params.set('fullTextFilter', inputs.fullText);
+        }
+        if (cursor) {
+            params.set('after', cursor);
+        }
+        const url = `${baseUrl}?${params.toString()}`;
+        if (inputs.debugRequest) {
+            debug(`Backstage catalog request: GET ${url}`);
+        }
+        const headers = {
+            Accept: 'application/json',
+            ...authHeaders
+        };
+        const response = await fetchWithRetry(url, headers, inputs.timeoutMs);
+        if (!response.ok) {
+            const body = await response.text().catch(() => '');
+            throw new Error(`Backstage catalog request failed with status ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`);
+        }
+        let json;
+        try {
+            json = await response.json();
+        }
+        catch {
+            throw new Error('Backstage catalog returned a non-JSON response.');
+        }
+        const data = json;
+        if (!Array.isArray(data['items'])) {
+            throw new Error('Backstage catalog response did not contain an "items" array.');
+        }
+        const page = json;
+        rawResponses.push(json);
+        allEntities.push(...page.items);
+        pageCount++;
+        debug(`Page ${pageCount}: received ${page.items.length} entities (total so far: ${allEntities.length})`);
+        cursor = page.pageInfo?.nextCursor;
+        if (inputs.maxEntities !== undefined &&
+            allEntities.length >= inputs.maxEntities) {
+            debug(`Reached max_entities limit of ${inputs.maxEntities}. Stopping pagination.`);
+            break;
+        }
+    } while (cursor);
+    if (inputs.maxEntities !== undefined &&
+        allEntities.length > inputs.maxEntities) {
+        return { entities: allEntities.slice(0, inputs.maxEntities), rawResponses };
+    }
+    return { entities: allEntities, rawResponses };
+}
+
+/**
+ * Escapes HTML special characters to prevent injection in the step summary.
+ */
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+/**
+ * Formats an entity reference based on the configured format.
+ * - compound: `kind:namespace/name` (kind lowercased, namespace defaults to 'default')
+ * - triplet: `kind/namespace/name`
+ */
+function formatEntityRef(entity, format) {
+    const kind = (entity.kind ?? 'unknown').toLowerCase();
+    const namespace = entity.metadata?.namespace ?? 'default';
+    const name = entity.metadata?.name ?? 'unknown';
+    if (format === 'triplet') {
+        return `${kind}/${namespace}/${name}`;
+    }
+    return `${kind}:${namespace}/${name}`;
+}
+/**
+ * Sets all GitHub Actions outputs based on the queried entities.
+ */
+function setActionOutputs(entities, inputs, rawResponses) {
+    const count = entities.length;
+    const entityRefs = entities.map((e) => formatEntityRef(e, inputs.entityRefFormat));
+    const entityNames = entities.map((e) => e.metadata?.name ?? '');
+    setOutput('count', String(count));
+    setOutput('entities_json', JSON.stringify(entities));
+    setOutput('entity_refs_json', JSON.stringify(entityRefs));
+    setOutput('entity_names_json', JSON.stringify(entityNames));
+    setOutput('first_entity_json', count > 0 ? JSON.stringify(entities[0]) : '');
+    setOutput('has_results', count > 0 ? 'true' : 'false');
+    if (inputs.includeRawResponse && rawResponses !== undefined) {
+        setOutput('raw_response_json', JSON.stringify(rawResponses));
+    }
+}
+/**
+ * Writes a step summary to the GitHub Actions summary with entity counts and refs.
+ */
+async function writeStepSummary(entities, inputs) {
+    const count = entities.length;
+    const previewCount = Math.min(count, 10);
+    const entityRefs = entities
+        .slice(0, previewCount)
+        .map((e) => formatEntityRef(e, inputs.entityRefFormat));
+    await summary
+        .addHeading('Backstage Catalog Query Results', 2)
+        .addRaw(`<p>Total entities found: <strong>${count}</strong></p>`)
+        .addRaw(previewCount > 0
+        ? `<p>First ${previewCount} entity refs:</p><ul>${entityRefs.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
+        : '<p>No entities matched the query.</p>')
+        .addRaw(count > 10 ? `<p><em>Showing first 10 of ${count} entities.</em></p>` : '')
+        .addRaw(inputs.maxEntities !== undefined && count >= inputs.maxEntities
+        ? `<p><em>Results truncated by max_entities limit of ${inputs.maxEntities}.</em></p>`
+        : '')
+        .write();
 }
 
 /**
@@ -28028,18 +28917,18 @@ async function wait(milliseconds) {
  */
 async function run() {
     try {
-        const ms = getInput('milliseconds');
-        // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-        debug(`Waiting ${ms} milliseconds ...`);
-        // Log the current timestamp, wait, then log the new timestamp
-        debug(new Date().toTimeString());
-        await wait(parseInt(ms, 10));
-        debug(new Date().toTimeString());
-        // Set outputs for other workflow steps to use
-        setOutput('time', new Date().toTimeString());
+        const inputs = parseInputs();
+        const authHeaders = await buildAuthHeaders(inputs);
+        const filterSets = buildFilterSets(inputs);
+        const { entities, rawResponses } = await queryBackstageCatalog(inputs, authHeaders, filterSets);
+        if (inputs.failOnEmpty && entities.length === 0) {
+            setFailed('No entities matched the query');
+            return;
+        }
+        setActionOutputs(entities, inputs, rawResponses);
+        await writeStepSummary(entities, inputs);
     }
     catch (error) {
-        // Fail the workflow run if an error occurs
         if (error instanceof Error)
             setFailed(error.message);
     }

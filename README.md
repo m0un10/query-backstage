@@ -1,305 +1,292 @@
-# Create a GitHub Action Using TypeScript
+# query-backstage
 
-![Linter](https://github.com/actions/typescript-action/actions/workflows/linter.yml/badge.svg)
-![CI](https://github.com/actions/typescript-action/actions/workflows/ci.yml/badge.svg)
-![Check dist/](https://github.com/actions/typescript-action/actions/workflows/check-dist.yml/badge.svg)
-![CodeQL](https://github.com/actions/typescript-action/actions/workflows/codeql-analysis.yml/badge.svg)
-![Coverage](./badges/coverage.svg)
+[![CI](https://github.com/m0un10/query-backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/m0un10/query-backstage/actions)
 
-Use this template to bootstrap the creation of a TypeScript action. :rocket:
+A GitHub Action that queries the [Backstage](https://backstage.io/) Software
+Catalog and exposes results as workflow outputs.
 
-This template includes compilation support, tests, a validation workflow,
-publishing, and versioning guidance.
+> [!TIP]
+> [Demo Workflow](https://github.com/m0un10/query-backstage/actions/runs/24987902181)
+> 👈 highlights the power when combined with
+> [Job Summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/)
+> and
+> [`matrix` strategy](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations).
 
-If you are new, there's also a simpler introduction in the
-[Hello world JavaScript action repository](https://github.com/actions/hello-world-javascript-action).
+## Features
 
-## Create Your Own Action
+- 🔍 Filter by kind, namespace, name, owner, tags, lifecycle, system, type, or
+  any raw Backstage filter expression
+- 📄 Cursor-based pagination — fetches all matching entities automatically
+- 🔐 Flexible authentication: bearer token, OAuth2 client credentials, custom
+  header, or none
+- ⚡ Native `fetch` with configurable timeout and exponential-backoff retry
+  (429/5xx)
+- 📤 Rich outputs: entity JSON, entity refs, counts, step summary
 
-To create your own action, you can use this repository as a template! Just
-follow the below instructions:
+---
 
-1. Click the **Use this template** button at the top of the repository
-1. Select **Create a new repository**
-1. Select an owner and name for your new repository
-1. Click **Create repository**
-1. Clone your new repository
+## 💡 Use Cases
 
-> [!IMPORTANT]
->
-> Make sure to remove or update the [`CODEOWNERS`](./CODEOWNERS) file! For
-> details on how to use this file, see
-> [About code owners](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners).
+- 🧾 **Enrich CI/CD with catalog metadata** — pull team, system, lifecycle, or
+  annotations from Backstage and feed them into downstream steps
+  ([example](.github/workflows/example-enrich-metadata.yml))
+- 🔔 **Route notifications or approvals by ownership** — look up the owning
+  team/group and address messages, mentions, or required reviewers to them
+  ([example](.github/workflows/example-route-notifications.yml))
+- 🔗 **Surface links to related tools and docs** — read Backstage annotations
+  and `metadata.links` (source repository, TechDocs, dashboards, runbooks) and
+  render them in a job summary or PR comment
+  ([example](.github/workflows/example-related-links.yml))
+- 🏷️ **Validate required catalog metadata** — fail CI if a component is missing
+  an owner, system, lifecycle, or other required annotation
+  ([example](.github/workflows/example-validate-metadata.yml))
+- 🎯 **Fan out matrix jobs across catalog entities** — feed `entity_refs_json`
+  into a `matrix` strategy to run a job per service, API, or resource
+  ([example](.github/workflows/demo-backstage-catalog.yml))
+- 🚦 **Gate deploys on catalog state** — block a deploy unless the target
+  component is registered in the catalog with the expected lifecycle
+  ([example](.github/workflows/example-gate-deploy.yml))
 
-## Initial Setup
+---
 
-After you've cloned the repository to your local machine or codespace, you'll
-need to perform some initial setup steps before you can develop your action.
+## Example: render results in the Job Summary
 
-> [!NOTE]
->
-> You'll need to have a reasonably modern version of
-> [Node.js](https://nodejs.org) handy (20.x or later should work!). If you are
-> using a version manager like [`nodenv`](https://github.com/nodenv/nodenv) or
-> [`fnm`](https://github.com/Schniz/fnm), this template has a `.node-version`
-> file at the root of the repository that can be used to automatically switch to
-> the correct version when you `cd` into the repository. Additionally, this
-> `.node-version` file is used by GitHub Actions in any `actions/setup-node`
-> actions.
-
-1. :hammer_and_wrench: Install the dependencies
-
-   ```bash
-   npm install
-   ```
-
-1. :building_construction: Package the TypeScript for distribution
-
-   ```bash
-   npm run bundle
-   ```
-
-1. :white_check_mark: Run the tests
-
-   ```bash
-   $ npm test
-
-   PASS  ./index.test.js
-     ✓ throws invalid number (3ms)
-     ✓ wait 500 ms (504ms)
-     ✓ test runs (95ms)
-
-   ...
-   ```
-
-## Update the Action Metadata
-
-The [`action.yml`](action.yml) file defines metadata about your action, such as
-input(s) and output(s). For details about this file, see
-[Metadata syntax for GitHub Actions](https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions).
-
-When you copy this repository, update `action.yml` with the name, description,
-inputs, and outputs for your action.
-
-## Update the Action Code
-
-The [`src/`](./src/) directory is the heart of your action! This contains the
-source code that will be run when your action is invoked. You can replace the
-contents of this directory with your own code.
-
-There are a few things to keep in mind when writing your action code:
-
-- Most GitHub Actions toolkit and CI/CD operations are processed asynchronously.
-  In `main.ts`, you will see that the action is run in an `async` function.
-
-  ```javascript
-  import * as core from '@actions/core'
-  //...
-
-  async function run() {
-    try {
-      //...
-    } catch (error) {
-      core.setFailed(error.message)
-    }
-  }
-  ```
-
-  For more information about the GitHub Actions toolkit, see the
-  [documentation](https://github.com/actions/toolkit/blob/main/README.md).
-
-So, what are you waiting for? Go ahead and start customizing your action!
-
-1. Create a new branch
-
-   ```bash
-   git checkout -b releases/v1
-   ```
-
-1. Replace the contents of `src/` with your action code
-1. Add tests to `__tests__/` for your source code
-1. Format, test, and build the action
-
-   ```bash
-   npm run all
-   ```
-
-   > This step is important! It will run [`rollup`](https://rollupjs.org/) to
-   > build the final JavaScript action code with all dependencies included. If
-   > you do not run this step, your action will not work correctly when it is
-   > used in a workflow.
-
-1. (Optional) Test your action locally
-
-   The [`@github/local-action`](https://github.com/github/local-action) utility
-   can be used to test your action locally. It is a simple command-line tool
-   that "stubs" (or simulates) the GitHub Actions Toolkit. This way, you can run
-   your TypeScript action locally without having to commit and push your changes
-   to a repository.
-
-   The `local-action` utility can be run in the following ways:
-   - Visual Studio Code Debugger
-
-     Make sure to review and, if needed, update
-     [`.vscode/launch.json`](./.vscode/launch.json)
-
-   - Terminal/Command Prompt
-
-     ```bash
-     # npx @github/local action <action-yaml-path> <entrypoint> <dotenv-file>
-     npx @github/local-action . src/main.ts .env
-     ```
-
-   You can provide a `.env` file to the `local-action` CLI to set environment
-   variables used by the GitHub Actions Toolkit. For example, setting inputs and
-   event payload data used by your action. For more information, see the example
-   file, [`.env.example`](./.env.example), and the
-   [GitHub Actions Documentation](https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables).
-
-1. Commit your changes
-
-   ```bash
-   git add .
-   git commit -m "My first action is ready!"
-   ```
-
-1. Push them to your repository
-
-   ```bash
-   git push -u origin releases/v1
-   ```
-
-1. Create a pull request and get feedback on your action
-1. Merge the pull request into the `main` branch
-
-Your action is now published! :rocket:
-
-For information about versioning your action, see
-[Versioning](https://github.com/actions/toolkit/blob/main/docs/action-versioning.md)
-in the GitHub Actions toolkit.
-
-## Validate the Action
-
-You can now validate the action by referencing it in a workflow file. For
-example, [`ci.yml`](./.github/workflows/ci.yml) demonstrates how to reference an
-action in the same repository.
+A complete workflow that queries the
+[public Backstage demo](https://demo.backstage.io) and writes a Markdown report
+into the run's
+[Job Summary](https://docs.github.com/en/actions/how-tos/writing-workflows/choose-what-your-workflow-does/adding-a-job-summary):
 
 ```yaml
-steps:
-  - name: Checkout
-    id: checkout
-    uses: actions/checkout@v4
+name: Backstage Catalog Report
 
-  - name: Test Local Action
-    id: test-action
-    uses: ./
-    with:
-      milliseconds: 1000
+on:
+  workflow_dispatch:
 
-  - name: Print Output
-    id: output
-    run: echo "${{ steps.test-action.outputs.time }}"
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Backstage
+        id: query
+        uses: m0un10/query-backstage@v1
+        with:
+          backstage_base_url: https://demo.backstage.io
+          auth_mode: none
+          kind: Component
+          lifecycle: production
+          max_entities: 5
+          fields: metadata.name,metadata.namespace,spec.owner,spec.type
+
+      - name: Write Job Summary
+        env:
+          ENTITIES_JSON: ${{ steps.query.outputs.entities_json }}
+          COUNT: ${{ steps.query.outputs.count }}
+          HAS_RESULTS: ${{ steps.query.outputs.has_results }}
+        run: |
+          {
+            echo "## 📦 Backstage Catalog Report"
+            echo ""
+            if [ "$HAS_RESULTS" = "true" ]; then
+              echo "Found **${COUNT}** production components."
+              echo ""
+              echo "| Name | Namespace | Owner | Type |"
+              echo "|------|-----------|-------|------|"
+              printf '%s' "$ENTITIES_JSON" | jq -r '
+                .[] | "| `\(.metadata.name)` | `\(.metadata.namespace)` | \(.spec.owner) | \(.spec.type) |"
+              '
+            else
+              echo "_No production components found._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 ```
 
-For example workflow runs, check out the
-[Actions tab](https://github.com/actions/typescript-action/actions)! :rocket:
+The Job Summary then renders as:
+
+---
+
+### 📦 Backstage Catalog Report
+
+Found **5** production components.
+
+| Name             | Namespace | Owner  | Type    |
+| ---------------- | --------- | ------ | ------- |
+| `petstore`       | `default` | team-a | service |
+| `wayback-search` | `default` | team-b | service |
+| `artist-lookup`  | `default` | team-c | service |
+| `playback-order` | `default` | team-a | service |
+| `searcher`       | `default` | team-b | service |
+
+---
 
 ## Usage
 
-After testing, you can create version tag(s) that developers can use to
-reference different stable versions of your action. For more information, see
-[Versioning](https://github.com/actions/toolkit/blob/main/docs/action-versioning.md)
-in the GitHub Actions toolkit.
-
-To include the action in a workflow in another repository, you can use the
-`uses` syntax with the `@` symbol to reference a specific branch, tag, or commit
-hash.
+### Basic: query all Components
 
 ```yaml
-steps:
-  - name: Checkout
-    id: checkout
-    uses: actions/checkout@v4
-
-  - name: Test Local Action
-    id: test-action
-    uses: actions/typescript-action@v1 # Commit with the `v1` tag
-    with:
-      milliseconds: 1000
-
-  - name: Print Output
-    id: output
-    run: echo "${{ steps.test-action.outputs.time }}"
+- uses: m0un10/query-backstage@v1
+  with:
+    backstage_base_url: https://backstage.example.com
+    token: ${{ secrets.BACKSTAGE_TOKEN }}
+    kind: Component
 ```
 
-## Publishing a New Release
+### Filter by owner and lifecycle
 
-This project includes a helper script, [`script/release`](./script/release)
-designed to streamline the process of tagging and pushing new releases for
-GitHub Actions.
-
-GitHub Actions allows users to select a specific version of the action to use,
-based on release tags. This script simplifies this process by performing the
-following steps:
-
-1. **Retrieving the latest release tag:** The script starts by fetching the most
-   recent SemVer release tag of the current branch, by looking at the local data
-   available in your repository.
-1. **Prompting for a new release tag:** The user is then prompted to enter a new
-   release tag. To assist with this, the script displays the tag retrieved in
-   the previous step, and validates the format of the inputted tag (vX.X.X). The
-   user is also reminded to update the version field in package.json.
-1. **Tagging the new release:** The script then tags a new release and syncs the
-   separate major tag (e.g. v1, v2) with the new release tag (e.g. v1.0.0,
-   v2.1.2). When the user is creating a new major release, the script
-   auto-detects this and creates a `releases/v#` branch for the previous major
-   version.
-1. **Pushing changes to remote:** Finally, the script pushes the necessary
-   commits, tags and branches to the remote repository. From here, you will need
-   to create a new release in GitHub so users can easily reference the new tags
-   in their workflows.
-
-## Dependency License Management
-
-This template includes a GitHub Actions workflow,
-[`licensed.yml`](./.github/workflows/licensed.yml), that uses
-[Licensed](https://github.com/licensee/licensed) to check for dependencies with
-missing or non-compliant licenses. This workflow is initially disabled. To
-enable the workflow, follow the below steps.
-
-1. Open [`licensed.yml`](./.github/workflows/licensed.yml)
-1. Uncomment the following lines:
-
-   ```yaml
-   # pull_request:
-   #   branches:
-   #     - main
-   # push:
-   #   branches:
-   #     - main
-   ```
-
-1. Save and commit the changes
-
-Once complete, this workflow will run any time a pull request is created or
-changes pushed directly to `main`. If the workflow detects any dependencies with
-missing or non-compliant licenses, it will fail the workflow and provide details
-on the issue(s) found.
-
-### Updating Licenses
-
-Whenever you install or update dependencies, you can use the Licensed CLI to
-update the licenses database. To install Licensed, see the project's
-[Readme](https://github.com/licensee/licensed?tab=readme-ov-file#installation).
-
-To update the cached licenses, run the following command:
-
-```bash
-licensed cache
+```yaml
+- uses: m0un10/query-backstage@v1
+  with:
+    backstage_base_url: https://backstage.example.com
+    token: ${{ secrets.BACKSTAGE_TOKEN }}
+    kind: Component
+    owner: team-platform
+    lifecycle: production
 ```
 
-To check the status of cached licenses, run the following command:
+### Use OAuth2 client credentials
 
-```bash
-licensed status
+```yaml
+- uses: m0un10/query-backstage@v1
+  with:
+    backstage_base_url: https://backstage.example.com
+    auth_mode: oauth2_client_credentials
+    oauth_token_url: https://auth.example.com/oauth/token
+    oauth_client_id: ${{ secrets.OAUTH_CLIENT_ID }}
+    oauth_client_secret: ${{ secrets.OAUTH_CLIENT_SECRET }}
+    kind: API
 ```
+
+### Use raw filter expressions
+
+```yaml
+- uses: m0un10/query-backstage@v1
+  with:
+    backstage_base_url: https://backstage.example.com
+    token: ${{ secrets.BACKSTAGE_TOKEN }}
+    filter: |
+      kind=Component,spec.lifecycle=production
+      kind=API,spec.lifecycle=production
+```
+
+### Fail if no results
+
+```yaml
+- uses: m0un10/query-backstage@v1
+  with:
+    backstage_base_url: https://backstage.example.com
+    token: ${{ secrets.BACKSTAGE_TOKEN }}
+    kind: Component
+    fail_on_empty: 'true'
+```
+
+---
+
+## Authentication Modes
+
+| Mode                        | Description                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `bearer_token` (default)    | Pass a token via the `token` input or via an env var named by `token_env_var` |
+| `oauth2_client_credentials` | Obtain a token using OAuth2 client credentials flow                           |
+| `custom_header`             | Send an arbitrary HTTP header (e.g. `X-API-Key`)                              |
+| `none`                      | No authentication headers sent                                                |
+
+---
+
+## Inputs
+
+### Core
+
+| Input                  | Required | Default        | Description                          |
+| ---------------------- | -------- | -------------- | ------------------------------------ |
+| `backstage_base_url`   | ✅       | —              | Base URL of your Backstage instance  |
+| `catalog_path`         |          | `/api/catalog` | Path to the catalog API              |
+| `page_limit`           |          | `500`          | Entities per page                    |
+| `max_entities`         |          | —              | Maximum total entities to return     |
+| `fail_on_empty`        |          | `false`        | Fail the step if no entities matched |
+| `include_raw_response` |          | `false`        | Include raw API responses in output  |
+| `debug_request`        |          | `false`        | Log the request URL for debugging    |
+
+### Convenience Filters
+
+| Input       | Catalog Field        | Description                  |
+| ----------- | -------------------- | ---------------------------- |
+| `kind`      | `kind`               | Comma-separated entity kinds |
+| `namespace` | `metadata.namespace` | Comma-separated namespaces   |
+| `tags`      | `metadata.tags`      | Comma-separated tags         |
+| `name`      | `metadata.name`      | Comma-separated entity names |
+| `owner`     | `spec.owner`         | Comma-separated owners       |
+| `system`    | `spec.system`        | Comma-separated systems      |
+| `type`      | `spec.type`          | Comma-separated types        |
+| `lifecycle` | `spec.lifecycle`     | Comma-separated lifecycles   |
+
+### Advanced
+
+| Input               | Default    | Description                                               |
+| ------------------- | ---------- | --------------------------------------------------------- |
+| `filter`            | —          | Raw filter string (one filter set per line)               |
+| `fields`            | —          | Comma-separated fields to include                         |
+| `order_field`       | —          | Field to sort by                                          |
+| `order_direction`   | —          | `asc` or `desc`                                           |
+| `full_text`         | —          | Full-text search string                                   |
+| `entity_ref_format` | `compound` | `compound` (`kind:ns/name`) or `triplet` (`kind/ns/name`) |
+
+### Authentication
+
+| Input                      | Default         | Description                              |
+| -------------------------- | --------------- | ---------------------------------------- |
+| `auth_mode`                | `bearer_token`  | Authentication mode                      |
+| `token`                    | —               | Bearer token value                       |
+| `token_env_var`            | —               | Env var name containing the bearer token |
+| `custom_auth_header_name`  | `Authorization` | Header name for `custom_header` mode     |
+| `custom_auth_header_value` | —               | Header value for `custom_header` mode    |
+| `oauth_token_url`          | —               | OAuth2 token endpoint                    |
+| `oauth_client_id`          | —               | OAuth2 client ID                         |
+| `oauth_client_secret`      | —               | OAuth2 client secret                     |
+| `oauth_scope`              | —               | OAuth2 scope                             |
+| `oauth_audience`           | —               | OAuth2 audience                          |
+| `oauth_resource`           | —               | OAuth2 resource                          |
+| `timeout_ms`               | `30000`         | HTTP timeout in milliseconds             |
+
+---
+
+## Outputs
+
+| Output              | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `count`             | Number of entities returned                              |
+| `entities_json`     | JSON array of all matched entities                       |
+| `entity_refs_json`  | JSON array of entity refs                                |
+| `entity_names_json` | JSON array of `metadata.name` values                     |
+| `first_entity_json` | First entity JSON or empty string                        |
+| `has_results`       | `'true'` if results found, `'false'` otherwise           |
+| `raw_response_json` | Raw API response (only when `include_raw_response=true`) |
+
+---
+
+## Security
+
+- Token values are **never** logged, even in debug mode
+- Only the request URL (not headers) is logged when `debug_request=true`
+- Use GitHub Secrets for all credentials
+
+---
+
+## Troubleshooting
+
+### Getting a 401 Unauthorized error
+
+- Verify your token is valid and has access to the Backstage catalog API.
+
+### No entities returned
+
+- Check your filter expressions for typos
+- Verify the kind value matches exactly (e.g. `Component`, not `component`)
+- Use `debug_request: 'true'` to inspect the full query URL
+
+### OAuth2 token request failing
+
+- Confirm `oauth_token_url`, `oauth_client_id`, and `oauth_client_secret` are
+  all set
+- Check if a `scope` or `audience` parameter is required by your IdP

@@ -40,16 +40,11 @@ repos:
       - id: actionlint
         args: [-config-file, actionlint.yml]
 
-  - repo: https://github.com/bridgecrewio/checkov
-    rev: 3.2.490
-    hooks:
-      - id: checkov
-        args: [--config-file, .checkov.yml]
-
-  # System-language hooks: prettier / eslint use the project-pinned versions
-  # via npm so they stay in sync with package.json. shellcheck mirrors what
-  # super-linter runs on shell scripts in CI; install with `brew install
-  # shellcheck` (macOS) or `apt-get install shellcheck` (Linux).
+  # System-language hooks call locally installed tools so the dev environment
+  # is shared across pre-commit and direct CLI use. Install on macOS via:
+  #   brew install shellcheck checkov
+  # Linux: apt-get install shellcheck && pipx install checkov.
+  # prettier / eslint / textlint use the project-pinned npm versions.
   - repo: local
     hooks:
       - id: shellcheck
@@ -58,6 +53,16 @@ repos:
         entry: shellcheck
         types: [shell]
         exclude: ^(node_modules|dist)/
+
+      # Upstream's checkov pre-commit hook only matches *.tf, so workflow
+      # CKV_GHA_* checks would never trigger. always_run with -d . matches
+      # super-linter's coverage of the whole repo.
+      - id: checkov
+        name: checkov
+        language: system
+        entry: checkov --config-file .checkov.yml -d .
+        always_run: true
+        pass_filenames: false
 
       - id: prettier
         name: prettier

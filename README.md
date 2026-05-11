@@ -34,11 +34,11 @@ Catalog and exposes results as workflow outputs.
   team/group and address messages, mentions, or required reviewers to them
   ([example](.github/workflows/example-route-notifications.yml))
 - 🔗 **Surface links to related tools and docs** — read Backstage annotations
-  and `metadata.links` (source repo, TechDocs, dashboards, runbooks) and render
-  them in a job summary or PR comment
+  and `metadata.links` (source repository, TechDocs, dashboards, runbooks) and
+  render them in a job summary or PR comment
   ([example](.github/workflows/example-related-links.yml))
-- 🏷️ **Validate required catalog metadata** — fail CI if a component is
-  missing an owner, system, lifecycle, or other required annotation
+- 🏷️ **Validate required catalog metadata** — fail CI if a component is missing
+  an owner, system, lifecycle, or other required annotation
   ([example](.github/workflows/example-validate-metadata.yml))
 - 🎯 **Fan out matrix jobs across catalog entities** — feed `entity_refs_json`
   into a `matrix` strategy to run a job per service, API, or resource

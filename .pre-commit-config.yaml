@@ -72,3 +72,12 @@ repos:
         entry: npx eslint
         files: \.(js|mjs|cjs|jsx|ts|tsx)$
         exclude: ^(dist|coverage|node_modules)/
+
+      # Mirrors super-linter's NATURAL_LANGUAGE check (textlint terminology).
+      # Config in .textlintrc matches the super-linter default template.
+      - id: textlint
+        name: textlint
+        language: system
+        entry: npx textlint
+        types: [markdown]
+        exclude: ^(dist|coverage|node_modules|\.licenses)/

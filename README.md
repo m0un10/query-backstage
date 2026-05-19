@@ -92,11 +92,11 @@ jobs:
             if [ "$HAS_RESULTS" = "true" ]; then
               echo "Found **${COUNT}** production components."
               echo ""
-              echo "| Name | Namespace | Owner | Type |"
-              echo "|------|-----------|-------|------|"
-              printf '%s' "$ENTITIES_JSON" | jq -r '
-                .[] | "| `\(.metadata.name)` | `\(.metadata.namespace)` | \(.spec.owner) | \(.spec.type) |"
-              '
+              echo "Name | Namespace | Owner | Type"
+              echo "-----|-----------|-------|-----"
+              jq --raw-output \
+                '.[] | "`\(.metadata.name)` | `\(.metadata.namespace)` | \(.spec.owner) | \(.spec.type)"' \
+                <<< "$ENTITIES_JSON"
             else
               echo "_No production components found._"
             fi

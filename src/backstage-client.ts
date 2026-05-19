@@ -96,12 +96,9 @@ export async function queryBackstageCatalog(
 
     // Add filter params - each FilterSet becomes one filter param (AND within set, OR across sets)
     for (const filterSet of filterSets) {
-      const filterParts: string[] = []
-      for (const [key, values] of Object.entries(filterSet)) {
-        for (const value of values) {
-          filterParts.push(`${key}=${value}`)
-        }
-      }
+      const filterParts = Object.entries(filterSet).flatMap(([key, values]) =>
+        values.map((value) => `${key}=${value}`)
+      )
       if (filterParts.length > 0) {
         params.append('filter', filterParts.join(','))
       }

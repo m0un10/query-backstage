@@ -37,16 +37,15 @@ async function fetchWithRetry(
       await sleep(delay)
     }
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
     let response: Response
     try {
-      response = await fetch(url, { headers, signal: controller.signal })
+      response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs)
+      })
     } catch (err) {
-      clearTimeout(timeoutId)
       const msg = err instanceof Error ? err.message : String(err)
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'TimeoutError') {
         throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`, {
           cause: err
         })
@@ -57,7 +56,6 @@ async function fetchWithRetry(
       if (attempt < MAX_RETRIES) continue
       throw lastError
     }
-    clearTimeout(timeoutId)
 
     if (!shouldRetry(response.status)) {
       return response
@@ -98,12 +96,9 @@ export async function queryBackstageCatalog(
 
     // Add filter params - each FilterSet becomes one filter param (AND within set, OR across sets)
     for (const filterSet of filterSets) {
-      const filterParts: string[] = []
-      for (const [key, values] of Object.entries(filterSet)) {
-        for (const value of values) {
-          filterParts.push(`${key}=${value}`)
-        }
-      }
+      const filterParts = Object.entries(filterSet).flatMap(([key, values]) =>
+        values.map((value) => `${key}=${value}`)
+      )
       if (filterParts.length > 0) {
         params.append('filter', filterParts.join(','))
       }
